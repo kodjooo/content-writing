@@ -1,0 +1,89 @@
+"""Объекты и функции для загрузки конфигурации приложения."""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List, Optional
+
+from dotenv import load_dotenv
+
+
+def _require_env(name: str) -> str:
+    """Получить обязательную переменную окружения или выбросить исключение."""
+    value = os.getenv(name)
+    if not value:
+        raise ValueError(f"Переменная окружения {name} обязательна")
+    return value
+
+
+@dataclass(frozen=True)
+class SheetAssistants:
+    """Конфигурация ассистентов для отдельной вкладки Google Sheets."""
+
+    tab: str
+    writer_assistant_id: str
+    moderator_assistant_id: str
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Собранные настройки приложения."""
+
+    openai_api_key: str
+    openai_org_id: Optional[str]
+    openai_project_id: Optional[str]
+    spreadsheet_id: str
+    service_account_file: Path
+    drive_folder_id: str
+    per_run_rows: int
+    max_revisions: int
+    lock_ttl_minutes: int
+    sheets: List[SheetAssistants] = field(default_factory=list)
+    global_image_brief_assistant_id: Optional[str] = None
+    temp_dir: Path = field(default_factory=lambda: Path("./tmp"))
+    log_level: str = "INFO"
+
+    @classmethod
+    def load(cls) -> "Settings":
+        """Загрузить конфигурацию из `.env` и переменных окружения."""
+        load_dotenv()
+
+        sheet_configs_raw = os.getenv("SHEETS_CONFIG", "").strip()
+        sheets: List[SheetAssistants] = []
+        if sheet_configs_raw:
+            try:
+                parsed = json.loads(sheet_configs_raw)
+                for item in parsed:
+                    sheets.append(
+                        SheetAssistants(
+                            tab=item["tab"],
+                            writer_assistant_id=item["writer_assistant_id"],
+                            moderator_assistant_id=item["moderator_assistant_id"],
+                        )
+                    )
+            except (json.JSONDecodeError, KeyError) as error:
+                raise ValueError("Не удалось разобрать переменную SHEETS_CONFIG") from error
+
+        temp_dir = Path(os.getenv("TEMP_DIR", "./tmp")).resolve()
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        service_account_file = Path(_require_env("GOOGLE_SERVICE_ACCOUNT_FILE")).expanduser().resolve()
+
+        return cls(
+            openai_api_key=_require_env("OPENAI_API_KEY"),
+            openai_org_id=os.getenv("OPENAI_ORG_ID") or None,
+            openai_project_id=os.getenv("OPENAI_PROJECT_ID") or None,
+            spreadsheet_id=_require_env("GOOGLE_SHEETS_SPREADSHEET_ID"),
+            service_account_file=service_account_file,
+            drive_folder_id=_require_env("GOOGLE_DRIVE_FOLDER_ID"),
+            per_run_rows=int(os.getenv("PROCESSING_PER_RUN_ROWS", "1")),
+            max_revisions=int(os.getenv("PROCESSING_MAX_REVISIONS", "5")),
+            lock_ttl_minutes=int(os.getenv("PROCESSING_LOCK_TTL_MINUTES", "15")),
+            sheets=sheets,
+            global_image_brief_assistant_id=os.getenv("GLOBAL_IMAGE_BRIEF_ASSISTANT_ID") or None,
+            temp_dir=temp_dir,
+            log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
+        )
