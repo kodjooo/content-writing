@@ -6,7 +6,7 @@
 - Скопируйте `.env.example` в `.env` и заполните значения.
 - Поместите `google-credentials.json` в каталог `secrets/` и установите `GOOGLE_SERVICE_ACCOUNT_FILE=/app/secrets/google-credentials.json`.
 - При необходимости задайте `FREEIMAGE_API_KEY` (для загрузки в авторизованный альбом FreeImage.host), иначе загрузка будет анонимной.
-- Управляйте шагом генерации изображений переменными `IMAGE_GENERATION_ENABLED` (вкл/выкл), `IMAGE_TEST_MODE` (тестовый режим без вызова API), `IMAGE_MODEL`, `IMAGE_QUALITY` и `IMAGE_SIZE`. Для `gpt-image-1` доступны значения качества `low/medium/high/auto` и размеры `1024x1024/1024x1536/1536x1024/auto`; для `dall-e-3` — только `standard|hd` и `1024x1024` соответственно.
+- Управляйте шагом генерации изображений переменными `IMAGE_GENERATION_ENABLED` (вкл/выкл), `IMAGE_TEST_MODE` (тестовый режим без вызова API), `IMAGE_MODEL`, `IMAGE_QUALITY`, `IMAGE_SIZE` и при необходимости отдельным ключом `IMAGE_OPENAI_API_KEY`. Для `gpt-image-1` доступны значения качества `low/medium/high/auto` и размеры `1024x1024/1024x1536/1536x1024/auto`; для `dall-e-3` — только `standard|hd` и `1024x1024` соответственно.
 ## Сборка и запуск
 ```bash
 docker compose build

@@ -63,10 +63,12 @@ class FreeImageHostClient:
         payload_json = response.json()
         success_flag = payload_json.get("success")
         if isinstance(success_flag, str):
-            success_flag = success_flag.lower() == "true"
+            success_flag_bool = success_flag.lower() == "true"
         elif isinstance(success_flag, dict):
-            success_flag = success_flag.get("value")
-        success = payload_json.get("status_code") == 200 and bool(success_flag)
+            success_flag_bool = success_flag.get("code") == 200 or success_flag.get("message")
+        else:
+            success_flag_bool = bool(success_flag)
+        success = payload_json.get("status_code") == 200 and bool(success_flag_bool)
         if not success:
             logger.warning("FreeImage.host error payload: %s", payload_json)
             error_info = payload_json.get("error")

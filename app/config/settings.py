@@ -57,6 +57,7 @@ class Settings:
     image_model: str = "gpt-image-1"
     image_host_api_key: Optional[str] = None
     image_test_mode: bool = False
+    image_openai_api_key: Optional[str] = None
 
     @classmethod
     def load(cls) -> "Settings":
@@ -104,6 +105,7 @@ class Settings:
             image_model=os.getenv("IMAGE_MODEL", "gpt-image-1"),
             image_host_api_key=os.getenv("FREEIMAGE_API_KEY") or None,
             image_test_mode=_env_flag("IMAGE_TEST_MODE", False),
+            image_openai_api_key=os.getenv("IMAGE_OPENAI_API_KEY") or None,
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:

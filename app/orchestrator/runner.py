@@ -35,7 +35,7 @@ def _init_assistants(settings: Settings) -> AssistantsClient:
 def _init_image_pipeline(settings: Settings) -> ImagePipeline:
     generator = ImageGenerator(
         ImageGenerationConfig(
-            api_key=settings.openai_api_key,
+            api_key=settings.image_openai_api_key or settings.openai_api_key,
             org_id=settings.openai_org_id,
             project_id=settings.openai_project_id,
             quality=settings.image_quality,
