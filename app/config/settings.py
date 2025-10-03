@@ -27,6 +27,12 @@ class SheetAssistants:
     writer_assistant_id: str
     moderator_assistant_id: str
 
+    def ensure_complete(self) -> None:
+        if not self.writer_assistant_id or not self.moderator_assistant_id:
+            raise ValueError(
+                f"Для вкладки {self.tab} должны быть указаны writer_assistant_id и moderator_assistant_id"
+            )
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -87,3 +93,10 @@ class Settings:
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
         )
+
+    def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:
+        for item in self.sheets:
+            if item.tab == tab_name:
+                item.ensure_complete()
+                return item
+        raise KeyError(f"Конфигурация ассистентов для вкладки {tab_name} не найдена")

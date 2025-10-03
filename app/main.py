@@ -23,7 +23,7 @@ def main() -> None:
     logging.getLogger().setLevel(settings.log_level)
     logger.info("Конфигурация успешно загружена, запуск оркестратора")
     run_once(settings)
-    logger.info("Первый этап реализации завершён, основная логика будет добавлена позже")
+    logger.info("Базовая инициализация завершена")
 
 
 if __name__ == "__main__":
