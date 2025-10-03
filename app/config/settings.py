@@ -85,16 +85,6 @@ class Settings:
 
         service_account_file = Path(_require_env("GOOGLE_SERVICE_ACCOUNT_FILE")).expanduser().resolve()
 
-        raw_image_quality = os.getenv("IMAGE_QUALITY", "high")
-        raw_image_size = os.getenv("IMAGE_SIZE", "1536x1024")
-
-        image_quality = raw_image_quality.lower().strip() if raw_image_quality else ""
-        if not image_quality:
-            image_quality = "high"
-
-        image_size_raw = raw_image_size or "1536x1024"
-        image_size = image_size_raw.replace(" ", "").replace("X", "x")
-
         return cls(
             openai_api_key=_require_env("OPENAI_API_KEY"),
             openai_org_id=os.getenv("OPENAI_ORG_ID") or None,
@@ -110,8 +100,8 @@ class Settings:
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
             image_generation_enabled=_env_flag("IMAGE_GENERATION_ENABLED", True),
-            image_quality=image_quality,
-            image_size=image_size,
+            image_quality=os.getenv("IMAGE_QUALITY", "high"),
+            image_size=os.getenv("IMAGE_SIZE", "1536x1024"),
             image_model=os.getenv("IMAGE_MODEL", "gpt-image-1"),
             image_host_api_key=os.getenv("FREEIMAGE_API_KEY") or None,
             image_test_mode=_env_flag("IMAGE_TEST_MODE", False),

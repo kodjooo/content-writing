@@ -183,15 +183,12 @@ class SheetsRepository:
     def _apply_updates(
         self, context: WorksheetContext, row_index: int, updates: Mapping[str, str]
     ) -> None:
-        data = []
         for column, value in updates.items():
             column_index = context.column_map.get(column)
             if not column_index:
                 raise KeyError(f"Столбец {column} отсутствует на вкладке")
             cell_range = f"{_column_to_a1(column_index)}{row_index}"
-            data.append({"range": cell_range, "values": [[value]]})
-        if data:
-            self._retryer(lambda: context.worksheet.batch_update(data))
+            self._retryer(lambda cr=cell_range, v=value: context.worksheet.update(cr, v))
 
     def release_lock(self, row: SheetRow) -> None:
         """Снять блокировку у строки."""
