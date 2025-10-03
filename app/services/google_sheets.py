@@ -10,9 +10,11 @@ from typing import Dict, List, Mapping, Optional
 
 import gspread
 from gspread import Worksheet
+from gspread.exceptions import GSpreadException
 
 from app.logging import get_logger
 from app.services.google_auth import load_credentials
+from app.utils.retry import create_retrying
 
 logger = get_logger(__name__)
 
@@ -99,12 +101,20 @@ class SheetsRepository:
         client = gspread.authorize(credentials)
         self._spreadsheet = client.open_by_key(spreadsheet_id)
         self._contexts: Dict[str, WorksheetContext] = {}
+        self._retryer = create_retrying(
+            name="google-sheets",
+            logger=logger,
+            exceptions=(GSpreadException,),
+            attempts=3,
+            base_delay=1.0,
+            max_delay=10.0,
+        )
 
     def _get_context(self, tab_name: str) -> WorksheetContext:
         if tab_name in self._contexts:
             return self._contexts[tab_name]
         worksheet = self._spreadsheet.worksheet(tab_name)
-        headers = worksheet.row_values(1)
+        headers = self._retryer.call(lambda: worksheet.row_values(1))
         missing = [col for col in REQUIRED_COLUMNS if col not in headers]
         if missing:
             raise ValueError(
@@ -121,7 +131,9 @@ class SheetsRepository:
         context = self._get_context(tab_name)
         range_start = "A2"
         range_end = context.last_column
-        raw_rows = context.worksheet.get_values(f"{range_start}:{range_end}")
+        raw_rows = self._retryer.call(
+            lambda: context.worksheet.get_values(f"{range_start}:{range_end}")
+        )
         logger.debug("Получено %s строк для вкладки %s", len(raw_rows), tab_name)
 
         for offset, raw_row in enumerate(raw_rows, start=2):
@@ -179,7 +191,7 @@ class SheetsRepository:
             cell_range = f"{_column_to_a1(column_index)}{row_index}"
             data.append({"range": cell_range, "values": [[value]]})
         if data:
-            context.worksheet.batch_update(data)
+            self._retryer.call(lambda: context.worksheet.batch_update(data))
 
     def release_lock(self, row: SheetRow) -> None:
         """Снять блокировку у строки."""

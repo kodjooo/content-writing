@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -16,6 +15,7 @@ except ImportError:  # совместимость разных версий SDK
 
 from app.logging import get_logger
 from app.services.google_drive import GoogleDriveClient
+from app.utils.retry import create_retrying
 
 logger = get_logger(__name__)
 
@@ -49,41 +49,35 @@ class ImageGenerator:
             organization=config.org_id,
             project=config.project_id,
         )
+        self._retryer = create_retrying(
+            name="image-generation",
+            logger=logger,
+            exceptions=(OpenAIError, ImageGenerationError),
+            attempts=config.retry_attempts,
+            base_delay=config.retry_base_delay,
+            max_delay=config.retry_max_delay,
+        )
 
     def generate(self, prompt: str, size: Optional[str] = None) -> bytes:
         """Сгенерировать изображение по описанию и вернуть бинарные данные."""
-        attempts = max(1, self._config.retry_attempts)
-        delay = self._config.retry_base_delay
-        last_error: Optional[Exception] = None
+        def _call() -> bytes:
+            response = self._client.images.generate(
+                model=self._config.model,
+                prompt=prompt,
+                size=size or self._config.size,
+                quality=self._config.quality,
+            )
+            if not response.data:
+                raise ImageGenerationError("Сервис не вернул данных изображения")
+            payload = response.data[0].get("b64_json")  # type: ignore[index]
+            if not payload:
+                raise ImageGenerationError("Ответ не содержит base64 изображения")
+            return base64.b64decode(payload)
 
-        for attempt in range(1, attempts + 1):
-            try:
-                response = self._client.images.generate(
-                    model=self._config.model,
-                    prompt=prompt,
-                    size=size or self._config.size,
-                    quality=self._config.quality,
-                )
-                if not response.data:
-                    raise ImageGenerationError("Сервис не вернул данных изображения")
-                payload = response.data[0].get("b64_json")  # type: ignore[index]
-                if not payload:
-                    raise ImageGenerationError("Ответ не содержит base64 изображения")
-                return base64.b64decode(payload)
-            except (OpenAIError, ImageGenerationError) as error:  # type: ignore[arg-type]
-                last_error = error
-                if attempt == attempts:
-                    break
-                logger.warning(
-                    "Ошибка генерации изображения (попытка %s/%s): %s",
-                    attempt,
-                    attempts,
-                    error,
-                )
-                time.sleep(delay)
-                delay = min(delay * 2, self._config.retry_max_delay)
-
-        raise ImageGenerationError("Не удалось сгенерировать изображение") from last_error
+        try:
+            return self._retryer.call(_call)
+        except (OpenAIError, ImageGenerationError) as error:  # type: ignore[arg-type]
+            raise ImageGenerationError("Не удалось сгенерировать изображение") from error
 
 
 class ImagePipeline:

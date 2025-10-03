@@ -14,6 +14,7 @@ except ImportError:  # fallback для совместимости версий
     OpenAIError = Exception  # type: ignore
 
 from app.logging import get_logger
+from app.utils.retry import create_retrying
 
 logger = get_logger(__name__)
 
@@ -33,6 +34,9 @@ class AssistantsConfig:
     project_id: Optional[str] = None
     poll_interval: float = 1.0
     timeout: Optional[float] = None
+    retry_attempts: int = 3
+    retry_base_delay: float = 1.0
+    retry_max_delay: float = 10.0
 
 
 class AssistantsClient:
@@ -45,11 +49,19 @@ class AssistantsClient:
             organization=config.org_id,
             project=config.project_id,
         )
+        self._retryer = create_retrying(
+            name="assistants",
+            logger=logger,
+            exceptions=(OpenAIError, AssistantRunError),
+            attempts=config.retry_attempts,
+            base_delay=config.retry_base_delay,
+            max_delay=config.retry_max_delay,
+        )
 
     def run_assistant(self, assistant_id: str, message: str) -> str:
         """Отправить сообщение ассистенту и вернуть текст ответа."""
         logger.debug("Запуск ассистента %s", assistant_id)
-        try:
+        def _call() -> str:
             thread = self._client.beta.threads.create()
             self._client.beta.threads.messages.create(
                 thread_id=thread.id,
@@ -66,7 +78,10 @@ class AssistantsClient:
                     f"Ассистент завершился со статусом {response_status}"
                 )
             return self._extract_text(thread.id)
-        except OpenAIError as error:  # type: ignore[arg-type]
+
+        try:
+            return self._retryer.call(_call)
+        except (OpenAIError, AssistantRunError) as error:  # type: ignore[arg-type]
             raise AssistantRunError(
                 "Не удалось получить ответ от ассистента"
             ) from error

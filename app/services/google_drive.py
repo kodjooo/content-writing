@@ -14,6 +14,7 @@ from googleapiclient.http import MediaFileUpload
 
 from app.logging import get_logger
 from app.services.google_auth import load_credentials
+from app.utils.retry import create_retrying
 
 logger = get_logger(__name__)
 
@@ -39,6 +40,14 @@ class GoogleDriveClient:
         self._folder_id = folder_id
         self._temp_dir = temp_dir
         self._service = None
+        self._retryer = create_retrying(
+            name="google-drive",
+            logger=logger,
+            exceptions=(HttpError, GoogleDriveError),
+            attempts=3,
+            base_delay=1.0,
+            max_delay=10.0,
+        )
 
     def _get_service(self):
         if self._service is None:
@@ -93,9 +102,10 @@ class GoogleDriveClient:
         name = filename or self.generate_filename(title)
         temp_path = self._save_temp(data, name)
 
-        try:
-            media = MediaFileUpload(str(temp_path), mimetype=mime_type, resumable=False)
-            metadata = {"name": name, "parents": [self._folder_id]}
+        media = MediaFileUpload(str(temp_path), mimetype=mime_type, resumable=False)
+        metadata = {"name": name, "parents": [self._folder_id]}
+
+        def _call() -> str:
             created = (
                 service.files()
                 .create(body=metadata, media_body=media, fields="id, webViewLink")
@@ -127,7 +137,10 @@ class GoogleDriveClient:
             if not link:
                 raise GoogleDriveError("Не удалось получить ссылку на изображение")
             return link
-        except HttpError as error:
+
+        try:
+            return self._retryer.call(_call)
+        except (HttpError, GoogleDriveError) as error:
             raise GoogleDriveError("Ошибка при загрузке изображения в Google Drive") from error
         finally:
             self._cleanup_file(temp_path)
