@@ -39,6 +39,8 @@ def _init_image_pipeline(settings: Settings) -> ImagePipeline:
             org_id=settings.openai_org_id,
             project_id=settings.openai_project_id,
             quality=settings.image_quality,
+            size=settings.image_size,
+            model=settings.image_model,
         )
     )
     drive_client = create_drive_client(

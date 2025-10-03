@@ -32,7 +32,7 @@ class ImageGenerationConfig:
     org_id: Optional[str] = None
     project_id: Optional[str] = None
     model: str = "gpt-image-1"
-    size: str = "1792x1024"
+    size: str = "1536x1024"
     quality: str = "high"
     retry_attempts: int = 3
     retry_base_delay: float = 1.0
