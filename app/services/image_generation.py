@@ -1,4 +1,4 @@
-"""Генерация изображений через OpenAI и выгрузка в Google Drive."""
+"""Генерация изображений через OpenAI и выгрузка на внешний хостинг."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ except ImportError:  # совместимость разных версий SDK
     OpenAIError = Exception  # type: ignore
 
 from app.logging import get_logger
-from app.services.google_drive import GoogleDriveClient
+from app.services.image_hosting import FreeImageHostClient
 from app.utils.retry import create_retrying
 
 logger = get_logger(__name__)
@@ -83,11 +83,11 @@ class ImageGenerator:
 
 
 class ImagePipeline:
-    """Комбинирует генератор и клиент Google Drive."""
+    """Комбинирует генератор и клиент загрузки изображений."""
 
-    def __init__(self, generator: ImageGenerator, drive_client: GoogleDriveClient) -> None:
+    def __init__(self, generator: ImageGenerator, uploader: FreeImageHostClient) -> None:
         self._generator = generator
-        self._drive = drive_client
+        self._uploader = uploader
 
     def generate_and_upload(
         self,
@@ -96,6 +96,6 @@ class ImagePipeline:
         mime_type: str = "image/png",
         size: Optional[str] = None,
     ) -> str:
-        """Сгенерировать изображение и загрузить его в Google Drive."""
+        """Сгенерировать изображение и загрузить его на внешний хостинг."""
         image_bytes = self._generator.generate(prompt, size=size)
-        return self._drive.upload_image(image_bytes, title=title, mime_type=mime_type)
+        return self._uploader.upload_image(image_bytes, title=title, mime_type=mime_type)

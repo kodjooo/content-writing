@@ -12,11 +12,11 @@ from app.orchestrator.processor import ProcessingError, process_row
 from app.services import (
     AssistantsClient,
     AssistantsConfig,
-    GoogleDriveError,
+    FreeImageHostError,
     ImageGenerationConfig,
     ImageGenerator,
     ImagePipeline,
-    create_drive_client,
+    create_image_host_client,
     create_sheets_repository,
 )
 
@@ -43,12 +43,8 @@ def _init_image_pipeline(settings: Settings) -> ImagePipeline:
             model=settings.image_model,
         )
     )
-    drive_client = create_drive_client(
-        service_account_file=settings.service_account_file,
-        folder_id=settings.drive_folder_id,
-        temp_dir=settings.temp_dir,
-    )
-    return ImagePipeline(generator, drive_client)
+    uploader = create_image_host_client(settings.image_host_api_key)
+    return ImagePipeline(generator, uploader)
 
 
 def run_once(settings: Settings) -> None:
@@ -83,8 +79,8 @@ def run_once(settings: Settings) -> None:
     if settings.image_generation_enabled:
         try:
             image_pipeline = _init_image_pipeline(settings)
-        except (FileNotFoundError, GoogleDriveError) as error:
-            logger.error("Не удалось инициализировать клиента Google Drive: %s", error)
+        except FreeImageHostError as error:
+            logger.error("Не удалось инициализировать клиент загрузки изображений: %s", error)
             return
         except Exception as error:  # noqa: BLE001
             logger.error("Не удалось подготовить генерацию изображений: %s", error)

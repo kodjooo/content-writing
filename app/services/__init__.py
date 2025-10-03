@@ -1,7 +1,6 @@
 """Пакет для внешних сервисов (OpenAI, Google и др.)."""
 
 from .google_auth import load_credentials
-from .google_drive import GoogleDriveClient, GoogleDriveError, create_drive_client
 from .google_sheets import SheetRow, SheetsRepository, create_sheets_repository
 from .openai_assistants import (
     APPROVAL_RESPONSES,
@@ -18,12 +17,14 @@ from .image_generation import (
     ImageGenerator,
     ImagePipeline,
 )
+from .image_hosting import (
+    FreeImageHostClient,
+    FreeImageHostError,
+    create_image_host_client,
+)
 
 __all__ = [
     "load_credentials",
-    "GoogleDriveClient",
-    "GoogleDriveError",
-    "create_drive_client",
     "SheetRow",
     "SheetsRepository",
     "create_sheets_repository",
@@ -38,4 +39,7 @@ __all__ = [
     "ImageGenerationError",
     "ImageGenerator",
     "ImagePipeline",
+    "FreeImageHostClient",
+    "FreeImageHostError",
+    "create_image_host_client",
 ]
