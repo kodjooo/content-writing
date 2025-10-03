@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    image: content-writing
+    env_file:
+      - .env
+    environment:
+      IMAGE_GENERATION_ENABLED: ${IMAGE_GENERATION_ENABLED:-true}
+    volumes:
+      - ./tmp:/app/tmp
+      - ./secrets:/app/secrets:ro
+    command: python -m app.main

@@ -1,36 +1,26 @@
-# Стартовый шаблон: Python в Docker
+# Контент-пайплайн
 
-Этот проект — минимальный каркас контейнеризованного приложения на Python. Его можно использовать как основу для CLI-утилит, сервисов, фоновых задач или веб-приложений.
+Минимальный контур автоматизации генерации текстов и изображений на основе Google Sheets, OpenAI Assistants и Google Drive.
 
-## Структура проекта
+## Подготовка окружения
+- Скопируйте `.env.example` в `.env` и заполните значения.
+- Поместите `service_account.json` в каталог `secrets/` и установите `GOOGLE_SERVICE_ACCOUNT_FILE=/app/secrets/service_account.json`.
+- При необходимости отключите генерацию изображений переменной `IMAGE_GENERATION_ENABLED=false`.
 
-- `app/` — исходный код приложения (точка входа `app/main.py`).
-- `requirements.txt` — список зависимостей (по умолчанию пустой, добавляйте свои).
-- `Dockerfile` — инструкция для сборки контейнера.
-- `.dockerignore` — исключения при сборке образа.
-
-## Запуск локально (без Docker)
-
+## Сборка и запуск
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-python -m app.main
+docker compose build
+# однократная обработка строк
+docker compose run --rm app
 ```
 
-## Сборка и запуск в Docker
-
+## Запуск тестов
 ```bash
-# Сборка образа
-docker build -t python-starter .
-
-# Запуск контейнера
-docker run --rm python-starter
+docker compose run --rm app python -m pytest
 ```
 
-## Дальнейшие шаги
-
-1. Добавьте зависимости в `requirements.txt` и пересоберите образ.
-2. Расширяйте модуль `app/main.py` или создавайте дополнительные пакеты/модули.
-3. По мере роста проекта добавьте тесты и инструменты качества кода по своему выбору.
+## Планирование запуска
+Пример cron-задания (ежечасно, с логом):
+```
+0 * * * * cd /path/to/content-writing && docker compose run --rm app >> /var/log/content-writing.log 2>&1
+```
