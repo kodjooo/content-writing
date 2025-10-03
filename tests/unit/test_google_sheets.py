@@ -15,7 +15,7 @@ from app.services.google_sheets import SheetRow, WorksheetContext, _lock_expired
 class DummyRetryer:
     """Минимальный ретраер, исполняющий функцию без повторов."""
 
-    def call(self, func):  # type: ignore[no-untyped-def]
+    def __call__(self, func):  # type: ignore[no-untyped-def]
         return func()
 
 

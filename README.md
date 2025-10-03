@@ -4,9 +4,8 @@
 
 ## Подготовка окружения
 - Скопируйте `.env.example` в `.env` и заполните значения.
-- Поместите `service_account.json` в каталог `secrets/` и установите `GOOGLE_SERVICE_ACCOUNT_FILE=/app/secrets/service_account.json`.
-- При необходимости отключите генерацию изображений переменной `IMAGE_GENERATION_ENABLED=false`.
-
+- Поместите `google-credentials.json` в каталог `secrets/` и установите `GOOGLE_SERVICE_ACCOUNT_FILE=/app/secrets/google-credentials.json`.
+- Управляйте шагом генерации изображений переменными `IMAGE_GENERATION_ENABLED` (вкл/выкл) и `IMAGE_QUALITY` (`low`/`medium`/`high`/`auto`).
 ## Сборка и запуск
 ```bash
 docker compose build

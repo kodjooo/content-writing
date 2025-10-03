@@ -52,6 +52,7 @@ class Settings:
     temp_dir: Path = field(default_factory=lambda: Path("./tmp"))
     log_level: str = "INFO"
     image_generation_enabled: bool = True
+    image_quality: str = "high"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -94,6 +95,7 @@ class Settings:
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
             image_generation_enabled=_env_flag("IMAGE_GENERATION_ENABLED", True),
+            image_quality=os.getenv("IMAGE_QUALITY", "high"),
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:

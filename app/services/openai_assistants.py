@@ -80,7 +80,7 @@ class AssistantsClient:
             return self._extract_text(thread.id)
 
         try:
-            return self._retryer.call(_call)
+            return self._retryer(_call)
         except (OpenAIError, AssistantRunError) as error:  # type: ignore[arg-type]
             raise AssistantRunError(
                 "Не удалось получить ответ от ассистента"

@@ -139,7 +139,7 @@ class GoogleDriveClient:
             return link
 
         try:
-            return self._retryer.call(_call)
+            return self._retryer(_call)
         except (HttpError, GoogleDriveError) as error:
             raise GoogleDriveError("Ошибка при загрузке изображения в Google Drive") from error
         finally:

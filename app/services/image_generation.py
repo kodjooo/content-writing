@@ -33,7 +33,7 @@ class ImageGenerationConfig:
     project_id: Optional[str] = None
     model: str = "gpt-image-1"
     size: str = "1792x1024"
-    quality: str = "standard"
+    quality: str = "high"
     retry_attempts: int = 3
     retry_base_delay: float = 1.0
     retry_max_delay: float = 10.0
@@ -75,7 +75,7 @@ class ImageGenerator:
             return base64.b64decode(payload)
 
         try:
-            return self._retryer.call(_call)
+            return self._retryer(_call)
         except (OpenAIError, ImageGenerationError) as error:  # type: ignore[arg-type]
             raise ImageGenerationError("Не удалось сгенерировать изображение") from error
 

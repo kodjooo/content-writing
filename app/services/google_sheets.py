@@ -114,7 +114,7 @@ class SheetsRepository:
         if tab_name in self._contexts:
             return self._contexts[tab_name]
         worksheet = self._spreadsheet.worksheet(tab_name)
-        headers = self._retryer.call(lambda: worksheet.row_values(1))
+        headers = self._retryer(lambda: worksheet.row_values(1))
         missing = [col for col in REQUIRED_COLUMNS if col not in headers]
         if missing:
             raise ValueError(
@@ -131,7 +131,7 @@ class SheetsRepository:
         context = self._get_context(tab_name)
         range_start = "A2"
         range_end = context.last_column
-        raw_rows = self._retryer.call(
+        raw_rows = self._retryer(
             lambda: context.worksheet.get_values(f"{range_start}:{range_end}")
         )
         logger.debug("Получено %s строк для вкладки %s", len(raw_rows), tab_name)
@@ -191,7 +191,7 @@ class SheetsRepository:
             cell_range = f"{_column_to_a1(column_index)}{row_index}"
             data.append({"range": cell_range, "values": [[value]]})
         if data:
-            self._retryer.call(lambda: context.worksheet.batch_update(data))
+            self._retryer(lambda: context.worksheet.batch_update(data))
 
     def release_lock(self, row: SheetRow) -> None:
         """Снять блокировку у строки."""

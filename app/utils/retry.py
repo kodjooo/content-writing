@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from typing import Iterable, Tuple, Type
 
-from tenacity import (  # type: ignore
-    RetryCallState,
-    Retrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
-)
+from tenacity import RetryCallState, Retrying, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
 
 def create_retrying(
