@@ -12,6 +12,12 @@ from .openai_assistants import (
     is_moderator_approved,
     normalize_moderator_reply,
 )
+from .image_generation import (
+    ImageGenerationConfig,
+    ImageGenerationError,
+    ImageGenerator,
+    ImagePipeline,
+)
 
 __all__ = [
     "load_credentials",
@@ -28,4 +34,8 @@ __all__ = [
     "build_revision_prompt",
     "is_moderator_approved",
     "normalize_moderator_reply",
+    "ImageGenerationConfig",
+    "ImageGenerationError",
+    "ImageGenerator",
+    "ImagePipeline",
 ]

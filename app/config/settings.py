@@ -51,6 +51,7 @@ class Settings:
     global_image_brief_assistant_id: Optional[str] = None
     temp_dir: Path = field(default_factory=lambda: Path("./tmp"))
     log_level: str = "INFO"
+    image_generation_enabled: bool = True
 
     @classmethod
     def load(cls) -> "Settings":
@@ -92,6 +93,7 @@ class Settings:
             global_image_brief_assistant_id=os.getenv("GLOBAL_IMAGE_BRIEF_ASSISTANT_ID") or None,
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
+            image_generation_enabled=_env_flag("IMAGE_GENERATION_ENABLED", True),
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:
@@ -100,3 +102,8 @@ class Settings:
                 item.ensure_complete()
                 return item
         raise KeyError(f"Конфигурация ассистентов для вкладки {tab_name} не найдена")
+def _env_flag(name: str, default: bool = True) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
