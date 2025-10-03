@@ -5,8 +5,7 @@
 ## Подготовка окружения
 - Скопируйте `.env.example` в `.env` и заполните значения.
 - Поместите `google-credentials.json` в каталог `secrets/` и установите `GOOGLE_SERVICE_ACCOUNT_FILE=/app/secrets/google-credentials.json`.
-- Управляйте шагом генерации изображений переменными `IMAGE_GENERATION_ENABLED` (вкл/выкл), `IMAGE_MODEL` (например, `gpt-image-1`, `dall-e-3`), `IMAGE_QUALITY` (`low`/`medium`/`high`/`auto`) и `IMAGE_SIZE` (`1024x1024`/`1024x1536`/`1536x1024`/`auto`).
-- Для моделей семейства `dall-e` допускаются только `IMAGE_QUALITY=standard|hd` и `IMAGE_SIZE=1024x1024`.
+- Управляйте шагом генерации изображений переменными `IMAGE_GENERATION_ENABLED` (вкл/выкл), `IMAGE_MODEL` (например, `gpt-image-1`, `dall-e-3`), `IMAGE_QUALITY` и `IMAGE_SIZE`. Для `gpt-image-1` доступны значения качества `low/medium/high/auto` и размеры `1024x1024/1024x1536/1536x1024/auto`; для `dall-e-3` — только `standard|hd` и `1024x1024` соответственно.
 ## Сборка и запуск
 ```bash
 docker compose build

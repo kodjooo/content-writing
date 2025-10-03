@@ -82,26 +82,6 @@ class Settings:
 
         service_account_file = Path(_require_env("GOOGLE_SERVICE_ACCOUNT_FILE")).expanduser().resolve()
 
-        image_model = os.getenv("IMAGE_MODEL", "gpt-image-1")
-        image_quality = os.getenv("IMAGE_QUALITY")
-        image_size = os.getenv("IMAGE_SIZE")
-
-        if image_model.startswith("dall-e"):
-            allowed_quality = {"standard", "hd"}
-            allowed_sizes = {"1024x1024"}
-            default_quality = "standard"
-            default_size = "1024x1024"
-        else:
-            allowed_quality = {"low", "medium", "high", "auto"}
-            allowed_sizes = {"1024x1024", "1024x1536", "1536x1024", "auto"}
-            default_quality = "high"
-            default_size = "1536x1024"
-
-        if not image_quality or image_quality not in allowed_quality:
-            image_quality = default_quality
-        if not image_size or image_size not in allowed_sizes:
-            image_size = default_size
-
         return cls(
             openai_api_key=_require_env("OPENAI_API_KEY"),
             openai_org_id=os.getenv("OPENAI_ORG_ID") or None,
@@ -117,9 +97,9 @@ class Settings:
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
             image_generation_enabled=_env_flag("IMAGE_GENERATION_ENABLED", True),
-            image_quality=image_quality,
-            image_size=image_size,
-            image_model=image_model,
+            image_quality=os.getenv("IMAGE_QUALITY", "high"),
+            image_size=os.getenv("IMAGE_SIZE", "1536x1024"),
+            image_model=os.getenv("IMAGE_MODEL", "gpt-image-1"),
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:
