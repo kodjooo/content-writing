@@ -51,9 +51,22 @@ class FreeImageHostClient:
             raise FreeImageHostError("Запрос к FreeImage.host завершился ошибкой") from error
 
         payload_json = response.json()
-        success = payload_json.get("status_code") == 200 and payload_json.get("success") in {True, "true"}
+        success_flag = payload_json.get("success")
+        if isinstance(success_flag, str):
+            success_flag = success_flag.lower() == "true"
+        elif isinstance(success_flag, dict):
+            success_flag = success_flag.get("value")
+        success = payload_json.get("status_code") == 200 and bool(success_flag)
         if not success:
-            message = payload_json.get("error", {}).get("message") or "FreeImage.host вернул ошибку"
+            logger.warning("FreeImage.host error payload: %s", payload_json)
+            error_info = payload_json.get("error")
+            if isinstance(error_info, dict):
+                message = error_info.get("message") or str(error_info)
+            elif error_info:
+                message = str(error_info)
+            else:
+                message = "FreeImage.host вернул ошибку"
+            logger.warning("FreeImage.host error: %s", message)
             raise FreeImageHostError(message)
 
         image_info = payload_json.get("image", {})
