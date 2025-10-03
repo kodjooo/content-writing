@@ -56,6 +56,7 @@ class Settings:
     image_size: str = "1536x1024"
     image_model: str = "gpt-image-1"
     image_host_api_key: Optional[str] = None
+    image_test_mode: bool = False
 
     @classmethod
     def load(cls) -> "Settings":
@@ -102,6 +103,7 @@ class Settings:
             image_size=os.getenv("IMAGE_SIZE", "1536x1024"),
             image_model=os.getenv("IMAGE_MODEL", "gpt-image-1"),
             image_host_api_key=os.getenv("FREEIMAGE_API_KEY") or None,
+            image_test_mode=_env_flag("IMAGE_TEST_MODE", False),
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:

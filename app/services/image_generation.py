@@ -85,9 +85,16 @@ class ImageGenerator:
 class ImagePipeline:
     """Комбинирует генератор и клиент загрузки изображений."""
 
-    def __init__(self, generator: ImageGenerator, uploader: FreeImageHostClient) -> None:
+    def __init__(
+        self,
+        generator: ImageGenerator,
+        uploader: FreeImageHostClient,
+        *,
+        test_mode: bool = False,
+    ) -> None:
         self._generator = generator
         self._uploader = uploader
+        self._test_mode = test_mode
 
     def generate_and_upload(
         self,
@@ -97,5 +104,12 @@ class ImagePipeline:
         size: Optional[str] = None,
     ) -> str:
         """Сгенерировать изображение и загрузить его на внешний хостинг."""
+        if self._test_mode:
+            return self._uploader.upload_image(
+                b"", title=title, mime_type=mime_type, test_mode=True
+            )
+
         image_bytes = self._generator.generate(prompt, size=size)
-        return self._uploader.upload_image(image_bytes, title=title, mime_type=mime_type)
+        return self._uploader.upload_image(
+            image_bytes, title=title, mime_type=mime_type, test_mode=False
+        )

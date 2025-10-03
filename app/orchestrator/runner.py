@@ -44,7 +44,11 @@ def _init_image_pipeline(settings: Settings) -> ImagePipeline:
         )
     )
     uploader = create_image_host_client(settings.image_host_api_key)
-    return ImagePipeline(generator, uploader)
+    return ImagePipeline(
+        generator,
+        uploader,
+        test_mode=settings.image_test_mode,
+    )
 
 
 def run_once(settings: Settings) -> None:

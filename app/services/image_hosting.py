@@ -31,7 +31,17 @@ class FreeImageHostClient:
         timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
         return f"{slug}_{timestamp}{extension}"
 
-    def upload_image(self, data: bytes, title: str, mime_type: str = "image/png") -> str:
+    def upload_image(
+        self,
+        data: bytes,
+        title: str,
+        mime_type: str = "image/png",
+        *,
+        test_mode: bool = False,
+    ) -> str:
+        if test_mode:
+            logger.info("Тестовый режим загрузки — возвращаем заглушку для %s", title)
+            return "https://freeimage.host/images/test-placeholder.png"
         filename = self._build_filename(title, ".png" if mime_type == "image/png" else "")
         files = {"source": (filename, data, mime_type)}
         payload = {"type": "file"}
