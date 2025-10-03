@@ -66,10 +66,12 @@ class ImageGenerator:
                 prompt=prompt,
                 size=size or self._config.size,
                 quality=self._config.quality,
+                response_format="b64_json",
             )
             if not response.data:
                 raise ImageGenerationError("Сервис не вернул данных изображения")
-            payload = response.data[0].get("b64_json")  # type: ignore[index]
+            first_item = response.data[0]
+            payload = getattr(first_item, "b64_json", None)
             if not payload:
                 raise ImageGenerationError("Ответ не содержит base64 изображения")
             return base64.b64decode(payload)
