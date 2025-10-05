@@ -92,10 +92,10 @@ def run_once(settings: Settings) -> None:
     else:
         logger.info("Генерация изображений отключена, шаг загрузки будет пропущен")
 
-    max_rows = settings.per_run_rows if settings.per_run_rows > 0 else 1
+    max_rows = settings.per_run_rows if settings.per_run_rows > 0 else None
     processed = 0
 
-    while processed < max_rows:
+    while True:
         row_found = False
         for sheet_cfg in settings.sheets:
             try:
@@ -128,6 +128,12 @@ def run_once(settings: Settings) -> None:
                     sheet_cfg.tab,
                     status_value,
                 )
+                if max_rows is not None and processed >= max_rows:
+                    logger.info(
+                        "Достигнут лимит per_run_rows=%s, обработка остановлена",
+                        max_rows,
+                    )
+                    return
             except ProcessingError as error:
                 logger.error(
                     "Ошибка обработки строки %s вкладки %s: %s",
