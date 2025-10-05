@@ -59,6 +59,9 @@ def process_row(
     except AssistantRunError as error:
         raise ProcessingError(f"Ошибка писателя: {error}") from error
 
+    # сохраняем текущий черновик сразу, чтобы его можно было увидеть рядом с комментарием
+    row.update({"Content": draft})
+
     moderator_note = ""
     approved = False
 
@@ -94,6 +97,8 @@ def process_row(
             )
         except AssistantRunError as error:
             raise ProcessingError(f"Ошибка писателя при доработке: {error}") from error
+
+        row.update({"Content": draft})
 
     image_url = ""
     if settings.image_generation_enabled:
