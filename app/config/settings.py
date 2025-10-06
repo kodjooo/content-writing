@@ -85,6 +85,12 @@ class Settings:
 
         service_account_file = Path(_require_env("GOOGLE_SERVICE_ACCOUNT_FILE")).expanduser().resolve()
 
+        max_revisions_value = _get_int_env(
+            primary="MODERATOR_MAX_ITERATIONS",
+            fallback="PROCESSING_MAX_REVISIONS",
+            default=5,
+        )
+
         return cls(
             openai_api_key=_require_env("OPENAI_API_KEY"),
             openai_org_id=os.getenv("OPENAI_ORG_ID") or None,
@@ -93,7 +99,7 @@ class Settings:
             service_account_file=service_account_file,
             drive_folder_id=_require_env("GOOGLE_DRIVE_FOLDER_ID"),
             per_run_rows=int(os.getenv("PROCESSING_PER_RUN_ROWS", "1")),
-            max_revisions=int(os.getenv("PROCESSING_MAX_REVISIONS", "5")),
+            max_revisions=max_revisions_value,
             lock_ttl_minutes=int(os.getenv("PROCESSING_LOCK_TTL_MINUTES", "15")),
             sheets=sheets,
             global_image_brief_assistant_id=os.getenv("GLOBAL_IMAGE_BRIEF_ASSISTANT_ID") or None,
@@ -119,3 +125,21 @@ def _env_flag(name: str, default: bool = True) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _get_int_env(*, primary: str, fallback: str, default: int) -> int:
+    """Получить целое значение из переменных окружения с запасным именем."""
+
+    raw_value = os.getenv(primary)
+    if raw_value is None or raw_value.strip() == "":
+        raw_value = os.getenv(fallback)
+
+    if raw_value is None or raw_value.strip() == "":
+        return default
+
+    try:
+        return int(raw_value)
+    except ValueError as error:  # pragma: no cover - защитное приведение типов
+        raise ValueError(
+            f"Некорректное числовое значение для переменной {primary}"
+        ) from error

@@ -188,7 +188,9 @@ class SheetsRepository:
             if not column_index:
                 raise KeyError(f"Столбец {column} отсутствует на вкладке")
             cell_range = f"{_column_to_a1(column_index)}{row_index}"
-            self._retryer(lambda cr=cell_range, v=value: context.worksheet.update(cr, v))
+            self._retryer(
+                lambda cr=cell_range, v=value: context.worksheet.update(cr, [[v]])
+            )
 
     def release_lock(self, row: SheetRow) -> None:
         """Снять блокировку у строки."""
