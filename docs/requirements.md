@@ -19,6 +19,7 @@
 - google: spreadsheet_id, путь до service_account.json
 - image_hosting: API-ключ FreeImage.host (опционально)
 - processing: per_run_rows, max_revisions, lock_ttl_minutes
+- schedule: флаг включения, время `HH:MM`, часовой пояс (по умолчанию Europe/Moscow)
 - sheets: список вкладок и id ассистентов для каждой
 - global_assistants: один ассистент для брифа
 

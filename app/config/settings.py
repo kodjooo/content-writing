@@ -43,7 +43,6 @@ class Settings:
     openai_project_id: Optional[str]
     spreadsheet_id: str
     service_account_file: Path
-    drive_folder_id: str
     per_run_rows: int
     max_revisions: int
     lock_ttl_minutes: int
@@ -58,6 +57,9 @@ class Settings:
     image_host_api_key: Optional[str] = None
     image_test_mode: bool = False
     image_openai_api_key: Optional[str] = None
+    schedule_enabled: bool = False
+    schedule_time: str = "08:30"
+    schedule_timezone: str = "Europe/Moscow"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -91,13 +93,20 @@ class Settings:
             default=5,
         )
 
+        raw_image_quality = os.getenv("IMAGE_QUALITY", "high")
+        image_quality = raw_image_quality.lower().strip() if raw_image_quality else "high"
+        if not image_quality:
+            image_quality = "high"
+
+        raw_image_size = os.getenv("IMAGE_SIZE", "1536x1024") or "1536x1024"
+        image_size = raw_image_size.replace(" ", "").replace("X", "x")
+
         return cls(
             openai_api_key=_require_env("OPENAI_API_KEY"),
             openai_org_id=os.getenv("OPENAI_ORG_ID") or None,
             openai_project_id=os.getenv("OPENAI_PROJECT_ID") or None,
             spreadsheet_id=_require_env("GOOGLE_SHEETS_SPREADSHEET_ID"),
             service_account_file=service_account_file,
-            drive_folder_id=_require_env("GOOGLE_DRIVE_FOLDER_ID"),
             per_run_rows=int(os.getenv("PROCESSING_PER_RUN_ROWS", "1")),
             max_revisions=max_revisions_value,
             lock_ttl_minutes=int(os.getenv("PROCESSING_LOCK_TTL_MINUTES", "15")),
@@ -106,12 +115,15 @@ class Settings:
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
             image_generation_enabled=_env_flag("IMAGE_GENERATION_ENABLED", True),
-            image_quality=os.getenv("IMAGE_QUALITY", "high"),
-            image_size=os.getenv("IMAGE_SIZE", "1536x1024"),
+            image_quality=image_quality,
+            image_size=image_size,
             image_model=os.getenv("IMAGE_MODEL", "gpt-image-1"),
             image_host_api_key=os.getenv("FREEIMAGE_API_KEY") or None,
             image_test_mode=_env_flag("IMAGE_TEST_MODE", False),
             image_openai_api_key=os.getenv("IMAGE_OPENAI_API_KEY") or None,
+            schedule_enabled=_env_flag("SCHEDULE_ENABLED", False),
+            schedule_time=os.getenv("SCHEDULE_TIME", "08:30"),
+            schedule_timezone=os.getenv("SCHEDULE_TIMEZONE", "Europe/Moscow"),
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:

@@ -75,7 +75,6 @@ def make_settings(tmp_path: Path, **overrides: Any) -> Settings:
         "openai_project_id": None,
         "spreadsheet_id": "spreadsheet",
         "service_account_file": account_file,
-        "drive_folder_id": "folder",
         "per_run_rows": 1,
         "max_revisions": 3,
         "lock_ttl_minutes": 15,

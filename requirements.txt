@@ -6,3 +6,4 @@ google-auth>=2.27.0
 tenacity>=8.2.3
 requests>=2.32.0
 pytest>=8.2.0
+pytz>=2023.3
