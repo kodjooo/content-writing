@@ -68,17 +68,27 @@ class Settings:
         load_dotenv()
 
         sheet_configs_raw = os.getenv("SHEETS_CONFIG", "").strip()
+        disabled_tabs_raw = os.getenv("IMAGE_DISABLED_TABS", "")
+        disabled_tabs = {
+            tab.strip().lower()
+            for tab in disabled_tabs_raw.split(",")
+            if tab.strip()
+        }
         sheets: List[SheetAssistants] = []
         if sheet_configs_raw:
             try:
                 parsed = json.loads(sheet_configs_raw)
                 for item in parsed:
+                    tab_name = item["tab"]
                     sheets.append(
                         SheetAssistants(
-                            tab=item["tab"],
+                            tab=tab_name,
                             writer_assistant_id=item["writer_assistant_id"],
                             moderator_assistant_id=item["moderator_assistant_id"],
-                            generate_image=item.get("generate_image", True),
+                            generate_image=item.get(
+                                "generate_image",
+                                tab_name.strip().lower() not in disabled_tabs,
+                            ),
                         )
                     )
             except (json.JSONDecodeError, KeyError) as error:
