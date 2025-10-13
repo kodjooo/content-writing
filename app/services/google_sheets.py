@@ -23,9 +23,12 @@ REQUIRED_COLUMNS = [
     "Content",
     "Image URL",
     "Status",
+    "Status Dzen",
     "Iteration",
     "Moderator Note",
+    "Publish Note",
     "Lock",
+    "Post Link",
 ]
 
 
