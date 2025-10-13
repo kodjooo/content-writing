@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from dataclasses import dataclass
+from datetime import datetime, time as dt_time, timedelta
+from typing import Optional, Sequence
 
 from gspread.exceptions import GSpreadException
 
@@ -51,7 +53,7 @@ def _init_image_pipeline(settings: Settings) -> ImagePipeline:
     )
 
 
-def run_once(settings: Settings) -> None:
+def run_once(settings: Settings, allowed_tabs: Optional[Sequence[str]] = None) -> None:
     """Обработать до `per_run_rows` строк со статусом Prepared."""
     if not settings.service_account_file.exists():
         logger.warning(
@@ -80,6 +82,10 @@ def run_once(settings: Settings) -> None:
         return
 
     image_pipeline: Optional[ImagePipeline] = None
+    allowed_lower: Optional[set[str]] = None
+    if allowed_tabs is not None:
+        allowed_lower = {tab.lower() for tab in allowed_tabs}
+
     if settings.image_generation_enabled:
         try:
             image_pipeline = _init_image_pipeline(settings)
@@ -98,6 +104,8 @@ def run_once(settings: Settings) -> None:
     while True:
         row_found = False
         for sheet_cfg in settings.sheets:
+            if allowed_lower and sheet_cfg.tab.lower() not in allowed_lower:
+                continue
             try:
                 sheet_cfg.ensure_complete()
             except ValueError as error:

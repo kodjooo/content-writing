@@ -61,6 +61,11 @@ class Settings:
     schedule_enabled: bool = False
     schedule_time: str = "08:30"
     schedule_timezone: str = "Europe/Moscow"
+    rss_schedule_times: tuple[str, ...] = field(default_factory=lambda: ("08:00", "20:00"))
+    vk_schedule_days: tuple[int, ...] = field(default_factory=tuple)
+    setka_schedule_days: tuple[int, ...] = field(default_factory=tuple)
+    vk_schedule_time: str = "18:00"
+    setka_schedule_time: str = "18:00"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -113,6 +118,16 @@ class Settings:
         raw_image_size = os.getenv("IMAGE_SIZE", "1536x1024") or "1536x1024"
         image_size = raw_image_size.replace(" ", "").replace("X", "x")
 
+        rss_schedule_raw = os.getenv("RSS_SCHEDULE_TIMES", "08:00,20:00")
+        rss_schedule_times = tuple(
+            time.strip()
+            for time in rss_schedule_raw.split(",")
+            if time.strip()
+        ) or ("08:00", "20:00")
+
+        vk_days = _parse_schedule_days(os.getenv("VK_SCHEDULE_DAYS", ""))
+        setka_days = _parse_schedule_days(os.getenv("SETKA_SCHEDULE_DAYS", ""))
+
         return cls(
             openai_api_key=_require_env("OPENAI_API_KEY"),
             openai_org_id=os.getenv("OPENAI_ORG_ID") or None,
@@ -136,6 +151,9 @@ class Settings:
             schedule_enabled=_env_flag("SCHEDULE_ENABLED", False),
             schedule_time=os.getenv("SCHEDULE_TIME", "08:30"),
             schedule_timezone=os.getenv("SCHEDULE_TIMEZONE", "Europe/Moscow"),
+            rss_schedule_times=rss_schedule_times,
+            vk_schedule_days=vk_days,
+            setka_schedule_days=setka_days,
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:
@@ -167,3 +185,33 @@ def _get_int_env(*, primary: str, fallback: str, default: int) -> int:
         raise ValueError(
             f"Некорректное числовое значение для переменной {primary}"
         ) from error
+
+
+def _parse_schedule_days(raw_value: str) -> tuple[int, ...]:
+    if not raw_value:
+        return tuple()
+    mapping = {
+        "mon": 0,
+        "monday": 0,
+        "tue": 1,
+        "tuesday": 1,
+        "wed": 2,
+        "wednesday": 2,
+        "thu": 3,
+        "thursday": 3,
+        "fri": 4,
+        "friday": 4,
+        "sat": 5,
+        "saturday": 5,
+        "sun": 6,
+        "sunday": 6,
+    }
+    result = []
+    for token in raw_value.split(","):
+        key = token.strip().lower()
+        if not key:
+            continue
+        if key not in mapping:
+            raise ValueError(f"Неизвестный день недели в расписании: {token}")
+        result.append(mapping[key])
+    return tuple(sorted(set(result)))
