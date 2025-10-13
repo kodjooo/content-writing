@@ -9,7 +9,12 @@ from typing import Dict, List
 import pytest
 
 from app.services import google_sheets
-from app.services.google_sheets import SheetRow, WorksheetContext, _lock_expired
+from app.services.google_sheets import (
+    SheetRow,
+    WorksheetContext,
+    _lock_expired,
+    _required_columns,
+)
 
 
 class DummyRetryer:
@@ -53,6 +58,13 @@ class FixedDatetime(datetime):
 def test_lock_expired(raw_value: str, expired: bool) -> None:
     """Функция корректно определяет просрочку Lock."""
     assert _lock_expired(raw_value) is expired
+
+
+def test_required_columns_vk_vs_other() -> None:
+    assert "Status Dzen" in _required_columns("VK")
+    assert "Publish Note" in _required_columns("VK")
+    assert "Status Dzen" not in _required_columns("Dzen")
+    assert "Publish Note" not in _required_columns("Habr")
 
 
 def test_acquire_prepared_row_sets_lock(monkeypatch: pytest.MonkeyPatch) -> None:

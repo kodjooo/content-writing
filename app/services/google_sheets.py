@@ -18,18 +18,24 @@ from app.utils.retry import create_retrying
 
 logger = get_logger(__name__)
 
-REQUIRED_COLUMNS = [
+BASE_REQUIRED_COLUMNS = [
     "Title",
     "Content",
     "Image URL",
     "Status",
-    "Status Dzen",
     "Iteration",
     "Moderator Note",
-    "Publish Note",
     "Lock",
     "Post Link",
 ]
+
+VK_ADDITIONAL_COLUMNS = ["Status Dzen", "Publish Note"]
+
+
+def _required_columns(tab_name: str) -> List[str]:
+    if tab_name.strip().lower() == "vk":
+        return BASE_REQUIRED_COLUMNS + VK_ADDITIONAL_COLUMNS
+    return BASE_REQUIRED_COLUMNS
 
 
 def _column_to_a1(index: int) -> str:
@@ -118,7 +124,8 @@ class SheetsRepository:
             return self._contexts[tab_name]
         worksheet = self._spreadsheet.worksheet(tab_name)
         headers = self._retryer(lambda: worksheet.row_values(1))
-        missing = [col for col in REQUIRED_COLUMNS if col not in headers]
+        required = _required_columns(tab_name)
+        missing = [col for col in required if col not in headers]
         if missing:
             raise ValueError(
                 f"Во вкладке {tab_name} отсутствуют обязательные столбцы: {', '.join(missing)}"
