@@ -204,3 +204,39 @@ def test_process_row_image_failure(tmp_path: Path, base_sheet_cfg: SheetAssistan
 
     assert "Ошибка генерации изображения" in str(error.value)
     assert row.values["Status"] == "Prepared"
+
+
+def test_process_row_skip_image_for_tab(tmp_path: Path, base_sheet_cfg: SheetAssistants) -> None:
+    assistants = FakeAssistantsClient(
+        {
+            "writer": ["Черновик"],
+            "moderator": ["ок"],
+            "brief": ["Описание"],
+        }
+    )
+    image_pipeline = FakeImagePipeline(url="https://drive.example/unused.png")
+    repository = DummyRepository()
+    row = build_row(repository)
+    row.values["Image URL"] = "https://existing.example/image.png"
+
+    settings = make_settings(tmp_path)
+
+    sheet_cfg = SheetAssistants(
+        tab="Main",
+        writer_assistant_id="writer",
+        moderator_assistant_id="moderator",
+        generate_image=False,
+    )
+
+    status = process_row(
+        row=row,
+        sheet_cfg=sheet_cfg,
+        assistants_client=assistants,
+        image_pipeline=image_pipeline,
+        brief_assistant_id=settings.global_image_brief_assistant_id,
+        settings=settings,
+    )
+
+    assert status == "Written"
+    assert image_pipeline.calls == []
+    assert row.values["Image URL"] == "https://existing.example/image.png"

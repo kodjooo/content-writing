@@ -41,7 +41,9 @@ def process_row(
     """Полностью обработать строку: текст, модерация, бриф и изображение."""
     if not row.title:
         raise ProcessingError("Столбец Title пустой, невозможно начать обработку")
-    if settings.image_generation_enabled:
+    image_needed = settings.image_generation_enabled and sheet_cfg.generate_image
+
+    if image_needed:
         if not brief_assistant_id:
             raise ProcessingError("Не задан ассистент художественного брифа")
         if not image_pipeline:
@@ -100,8 +102,8 @@ def process_row(
 
         row.update({"Content": draft})
 
-    image_url = ""
-    if settings.image_generation_enabled:
+    image_url = row.values.get("Image URL", "")
+    if image_needed:
         try:
             brief_prompt = assistants_client.run_assistant(brief_assistant_id, draft)
         except AssistantRunError as error:
@@ -113,7 +115,8 @@ def process_row(
             raise ProcessingError(f"Ошибка генерации изображения: {error}") from error
     else:
         logger.info(
-            "Генерация изображений отключена настройкой, шаг пропускается для строки %s",
+            "Генерация изображений отключена для вкладки %s, строка %s",
+            sheet_cfg.tab,
             row.row_index,
         )
 

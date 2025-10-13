@@ -26,6 +26,7 @@ class SheetAssistants:
     tab: str
     writer_assistant_id: str
     moderator_assistant_id: str
+    generate_image: bool = True
 
     def ensure_complete(self) -> None:
         if not self.writer_assistant_id or not self.moderator_assistant_id:
@@ -77,6 +78,7 @@ class Settings:
                             tab=item["tab"],
                             writer_assistant_id=item["writer_assistant_id"],
                             moderator_assistant_id=item["moderator_assistant_id"],
+                            generate_image=item.get("generate_image", True),
                         )
                     )
             except (json.JSONDecodeError, KeyError) as error:
