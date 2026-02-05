@@ -50,6 +50,15 @@ def _run_with_schedule(settings: Settings) -> None:
         settings.schedule_timezone,
     )
 
+    if settings.run_on_start:
+        logger.info("Запуск при старте перед планировщиком")
+        try:
+            run_once(settings)
+        except Exception as error:  # noqa: BLE001
+            logger.exception("Сбой при запуске при старте: %s", error)
+        else:
+            logger.info("Запуск при старте завершён")
+
     while True:
         now_utc = datetime.now(pytz.utc)
         local_now = now_utc.astimezone(timezone)

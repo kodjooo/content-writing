@@ -59,6 +59,7 @@ class Settings:
     image_test_mode: bool = False
     image_openai_api_key: Optional[str] = None
     schedule_enabled: bool = False
+    run_on_start: bool = False
     schedule_time: str = "08:30"
     schedule_timezone: str = "Europe/Moscow"
 
@@ -134,6 +135,7 @@ class Settings:
             image_test_mode=_env_flag("IMAGE_TEST_MODE", False),
             image_openai_api_key=os.getenv("IMAGE_OPENAI_API_KEY") or None,
             schedule_enabled=_env_flag("SCHEDULE_ENABLED", False),
+            run_on_start=_env_flag("RUN_ON_START", False),
             schedule_time=os.getenv("SCHEDULE_TIME", "08:30"),
             schedule_timezone=os.getenv("SCHEDULE_TIMEZONE", "Europe/Moscow"),
         )
