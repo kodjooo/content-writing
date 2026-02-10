@@ -1,171 +1,100 @@
-1) Цель и общий принцип
+# Бизнес-требования и runtime-контракт
 
-При каждом запуске скрипт обрабатывает ровно одну строку со статусом Prepared в выбранной вкладке Google Sheets: берёт Title, отправляет его «писателю» (GPT-ассистент №1), результат — «модератору» (GPT-ассистент №2). Если модератор ответил «Ок», текст фиксируется в столбце Content. Если ответ не «Ок», скрипт формирует уточняющий запрос (оригинальный текст + комментарий модератора) и повторяет цикл до 5 раз. После финальной версии текст отправляется «художественному брифу» (GPT-ассистент №3), его ответ — в генерацию изображения, картинка загружается на FreeImage.host, ссылка записывается в строку. Статус проставляется в самом конце: либо Written, либо Written (not moderated).
+## 1. Назначение сервиса
+Сервис автоматизирует выпуск контента из Google Sheets. За один цикл обработки строка проходит через цепочку:
+`писатель -> модератор -> (опционально) бриф -> генерация изображения -> публикация результата в таблицу`.
 
-2) Архитектура решения
+Целевые статусы строки:
+- `Written` — модератор одобрил материал.
+- `Written (not moderated)` — лимит итераций доработки исчерпан.
+- `Error` — в процессе возникла ошибка.
 
-Компоненты:
-- Google Sheets: чтение/запись строк, выбор следующей строки со статусом Prepared.
-- FreeImage.host: загрузка сгенерированного изображения и получение публичной ссылки.
-- OpenAI (текст): вызовы Chat Completions API для трёх ролей (писатель, модератор, бриф).
-- OpenAI (картинка): генерация через gpt-image-1.
+## 2. Внешние зависимости
+- Google Sheets (чтение/запись строк и блокировок).
+- OpenAI Assistants API (писатель, модератор, бриф).
+- OpenAI Images API (`gpt-image-1` или `dall-e-3`) для генерации изображений.
+- FreeImage.host для получения публичной ссылки на изображение.
 
-Основные библиотеки Python: openai, gspread, google-auth, requests, tenacity, python-dotenv.
+## 3. Конфигурация окружения
+Обязательные переменные:
+- `OPENAI_API_KEY`
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
+- `GOOGLE_SERVICE_ACCOUNT_FILE`
 
-3) Конфигурация
+Ключевые опциональные переменные:
+- OpenAI: `OPENAI_ORG_ID`, `OPENAI_PROJECT_ID`, `IMAGE_OPENAI_API_KEY`
+- Обработка: `PROCESSING_PER_RUN_ROWS`, `PROCESSING_LOCK_TTL_MINUTES`
+- Лимит модерации: `MODERATOR_MAX_ITERATIONS` (приоритет), fallback `PROCESSING_MAX_REVISIONS`
+- Вкладки и ассистенты: `SHEETS_CONFIG`, `IMAGE_DISABLED_TABS`, `GLOBAL_IMAGE_BRIEF_ASSISTANT_ID`
+- Изображения: `IMAGE_GENERATION_ENABLED`, `IMAGE_TEST_MODE`, `IMAGE_MODEL`, `IMAGE_QUALITY`, `IMAGE_SIZE`, `FREEIMAGE_API_KEY`
+- Планировщик: `SCHEDULE_ENABLED`, `RUN_ON_START`, `SCHEDULE_TIME`, `SCHEDULE_TIMEZONE`
+- Сервисные: `TEMP_DIR`, `LOG_LEVEL`
 
-Хранится в .env файле. Там задаются:
-- openai: ключ
-- google: spreadsheet_id, путь до service_account.json
-- image_hosting: API-ключ FreeImage.host (опционально)
-- processing: per_run_rows, max_revisions, lock_ttl_minutes
-- schedule: флаг включения, время `HH:MM`, часовой пояс (по умолчанию Europe/Moscow)
-- sheets: список вкладок и id ассистентов для каждой
-- global_assistants: один ассистент для брифа
+## 4. Контракт Google Sheets
+### 4.1 Обязательные столбцы для всех вкладок
+- `Title`
+- `Content`
+- `Image URL`
+- `Status`
+- `Iteration`
+- `Moderator Note`
+- `Lock`
+- `Post Link`
 
-4) Структура таблицы
+### 4.2 Дополнительные обязательные столбцы для вкладки `vk`
+(без учета регистра имени вкладки)
+- `Status Dzen`
+- `Publish Note`
 
-Обязательные столбцы: Title, Content, Image URL, Status, Iteration, Moderator Note, Lock.
+Если обязательные столбцы отсутствуют, обработка вкладки невозможна.
 
-5) Алгоритм обработки одной строки
+## 5. Алгоритм обработки строки
+1. Найти первую строку со `Status=Prepared` и доступным `Lock` (пустым или просроченным), затем выставить новый TTL-lock.
+2. Инициализировать `Iteration` (если пусто/некорректно — `0`) и сразу записать значение в таблицу.
+3. Вызвать ассистента-писателя с `Title`.
+4. Сразу сохранить черновик в `Content`.
+5. Вызвать ассистента-модератора с текущим `Content`.
+6. Сохранить ответ модератора в `Moderator Note`.
+7. Если модератор подтвердил (`ok`, `ок`, `okay`, `хорошо`), завершить цикл ревизий.
+8. Если не подтвердил:
+- увеличить `Iteration` и записать в таблицу;
+- если `Iteration >= max_revisions`, остановить ревизии;
+- иначе сформировать промпт доработки:
+  `Текст:\n<draft>\n\nКомментарий:\n<feedback>`
+  и снова вызвать писателя.
+9. Генерация изображения:
+- выполняется только если `IMAGE_GENERATION_ENABLED=true` и для вкладки разрешено `generate_image=true`;
+- если разрешена, обязателен `GLOBAL_IMAGE_BRIEF_ASSISTANT_ID`;
+- сначала вызывается ассистент брифа, затем генерация изображения и загрузка на FreeImage.host;
+- при `IMAGE_TEST_MODE=true` возвращается тестовая ссылка без реального вызова внешних API.
+10. Финальная запись полей:
+- `Content` — финальный текст;
+- `Image URL` — ссылка (новая или прежняя, если генерация отключена);
+- `Status` — `Written` или `Written (not moderated)`;
+- `Iteration` и `Moderator Note` — актуальные значения.
+11. `Lock` снимается в `finally`-блоке вне зависимости от результата.
 
-1. Загрузка конфига и инициализация клиентов.
-2. Поиск первой строки со статусом Prepared и пустым Lock, установка Lock.
-3. Отправка Title писателю → draft.
-4. Отправка draft модератору. Если ответ «Ок» → шаг 6. Иначе: собрать запрос в формате
+## 6. Ошибки и устойчивость
+- Ошибки модулей обработки строки поднимаются как `ProcessingError`.
+- В `runner` на любую ошибку строки выставляются:
+  - `Status=Error`
+  - `Moderator Note=<текст ошибки>`
+- После этого всегда выполняется попытка снять `Lock`.
+- Для сетевых обращений используются экспоненциальные ретраи (`tenacity`) в сервисах:
+  - Google Sheets
+  - Assistants API
+  - OpenAI Images API
+  - FreeImage.host
 
-Текст:
-<ответ писателя>
+## 7. Режимы запуска
+- Разовый запуск: `run_once` обрабатывает до `PROCESSING_PER_RUN_ROWS` строк. При `<=0` ограничение снимается.
+- Планировщик: при `SCHEDULE_ENABLED=true` сервис выполняет запуск ежедневно в `SCHEDULE_TIME` в часовом поясе `SCHEDULE_TIMEZONE`.
+- При `RUN_ON_START=true` в режиме планировщика сначала выполняется немедленный запуск, затем сервис переходит в ежедневный цикл.
 
-Комментарий:
-<ответ модератора>
-
-отправить писателю, увеличить Iteration. Повторять пока не «Ок» или не 5 итераций.
-5. Если лимит итераций достигнут — статус Written (not moderated).
-6. Финальный текст отправить бриф-ассистенту.
-7. На основании ответа бриф-ассистента генерировать картинку, загрузить на FreeImage.host, получить ссылку.
-8. Записать Content и Image URL, очистить Lock, выставить финальный Status.
-
-7) Вызовы OpenAI
-
-Агентский вызов для текста делается через Assistants API. У каждого агента есть свой assistant_id, и чтобы получить ответ, нужно создать thread, добавить в него сообщение, запустить run и дождаться завершения. 
-
-Пример функций:
-
-from openai import OpenAI
-import time
-
-client = OpenAI()
-
-def run_assistant(assistant_id: str, user_content: str, poll_interval: float = 1.0) -> str:
-    # создаём тред
-    thread = client.beta.threads.create()
-    
-    # добавляем сообщение пользователя
-    client.beta.threads.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content=user_content
-    )
-    
-    # запускаем ран
-    run = client.beta.threads.runs.create(
-        thread_id=thread.id,
-        assistant_id=assistant_id
-    )
-    
-    # опрос до завершения
-    while True:
-        run_status = client.beta.threads.runs.retrieve(
-            thread_id=thread.id,
-            run_id=run.id
-        )
-        if run_status.status in ["completed", "failed", "cancelled", "expired"]:
-            break
-        time.sleep(poll_interval)
-    
-    # читаем последнее сообщение
-    messages = client.beta.threads.messages.list(thread_id=thread.id)
-    if messages.data:
-        return messages.data[0].content[0].text.value.strip()
-    return ""
-
-Использование:
-draft = run_assistant(writer_assistant_id, title)
-moderator_reply = run_assistant(moderator_assistant_id, draft)
-brief = run_assistant(image_brief_assistant_id, draft)
-
-images.generate используется для картинки.
-
-def generate_image(model, prompt):
-    img = client.images.generate(model=model, prompt=prompt, size="1792x1024")
-    import base64
-    return base64.b64decode(img.data[0].b64_json)
-
-8) Google Sheets
-
-Через gspread: открыть таблицу, найти Prepared + пустой Lock, поставить Lock. После завершения работы снять Lock и обновить Status.
-
-9) FreeImage.host
-
-Через HTTP API `https://freeimage.host/api/1/upload`: отправить изображение в формате multipart/form-data, передать ключ (если есть), получить из ответа публичную ссылку (`image.url` или `image.display_url`).
-
-10) Детали модерации
-
-Проверка ответа: приводим к нижнему регистру, обрезаем пробелы, принимаем ok/ок/okay/хорошо.
-
-11) Управление итерациями
-
-Каждый новый запрос писателю формируем в виде:
-
-Текст:
-<draft>
-
-Комментарий:
-<feedback>
-
-12) Идемпотентность
-
-Lock защищает от параллельных запусков. Использовать ретраи для API. Записи в Sheets делать батчами.
-
-13) Каркас кода
-
-def process_one_row(ctx):
-    row = acquire_row(...)
-    if not row: return
-    draft = call_writer(...)
-    iteration = 0
-    while iteration <= max_rev:
-        mod = call_moderator(...)
-        if is_ok(mod): break
-        iteration += 1
-        if iteration > max_rev: break
-        draft = call_writer(..., f"Текст:\n{draft}\n\nКомментарий:\n{mod}")
-    brief = call_image_brief(...)
-    img = generate_image(..., brief)
-    link = upload_to_drive(..., img)
-    write_cells(..., {"Content": draft, "Image URL": link})
-    status = "Written" if is_ok(mod) else "Written (not moderated)"
-    write_cells(..., {"Status": status})
-
-14) Доступы
-
-- OpenAI: ключ в переменной окружения.
-- Google: сервис-аккаунт, доступ к таблице.
-- FreeImage.host: API-ключ (если требуется привязка к аккаунту).
-
-15) Имя файла
-
-Формировать по Title + дата, хранить временные файлы в ./tmp и чистить после загрузки.
-
-16) Тест-план
-
-- Нет Prepared строк → скрипт завершает работу.
-- Разные варианты написания «Ок».
-- Комментарий модератора корректно вставляется.
-- Лимит 5 итераций → Written (not moderated).
-- Ошибки загрузки на хостинг → запись в Error и снятие Lock.
-
-17) Рекомендации
-
-Температура 0.4–0.8, короткие системные промты, строго проверять формат ответа модератора, использовать ретраи, батч-запись в Sheets.
+## 8. Тестовые сценарии (минимум)
+- Нет строк `Prepared` -> сервис корректно завершает цикл без ошибок.
+- Подтверждение модератора распознается для `ok/ок/okay/хорошо`.
+- При исчерпании лимита ревизий устанавливается `Written (not moderated)`.
+- При ошибке генерации изображения строка переводится в `Error` на уровне `runner`.
+- `Lock` снимается после обработки как при успехе, так и при ошибке.
+- Для вкладки `vk` валидируются дополнительные обязательные столбцы.

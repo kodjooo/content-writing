@@ -61,6 +61,8 @@ def test_lock_expired(raw_value: str, expired: bool) -> None:
 
 
 def test_required_columns_vk_vs_other() -> None:
+    common = _required_columns("Main")
+    assert "Post Link" in common
     assert "Status Dzen" in _required_columns("VK")
     assert "Publish Note" in _required_columns("VK")
     assert "Status Dzen" not in _required_columns("Dzen")
@@ -79,6 +81,7 @@ def test_acquire_prepared_row_sets_lock(monkeypatch: pytest.MonkeyPatch) -> None
         "Iteration",
         "Moderator Note",
         "Lock",
+        "Post Link",
     ]
     rows = [["Заголовок", "", "", "Prepared", "0", "", ""]]
     worksheet = FakeWorksheet(rows)
@@ -119,6 +122,7 @@ def test_acquire_prepared_row_skips_locked(monkeypatch: pytest.MonkeyPatch) -> N
         "Iteration",
         "Moderator Note",
         "Lock",
+        "Post Link",
     ]
     future_lock = "3024-01-01T00:00:00Z"
     rows = [["Заголовок", "", "", "Prepared", "0", "", future_lock]]
