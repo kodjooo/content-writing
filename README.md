@@ -48,8 +48,8 @@
 [
   {
     "tab": "VK",
-    "writer_assistant_id": "asst_writer",
-    "moderator_assistant_id": "asst_moderator"
+    "writer_model": "asst_writer",
+    "moderator_model": "asst_moderator"
   }
 ]
 ```

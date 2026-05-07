@@ -11,8 +11,9 @@ from app.services import (
     ImagePipeline,
     AssistantRunError,
     ImageGenerationError,
-    build_revision_prompt,
+    PromptSet,
     is_moderator_approved,
+    load_prompt_set,
 )
 from app.services.google_sheets import SheetRow
 
@@ -30,12 +31,21 @@ def _parse_iteration(raw_value: Optional[str]) -> int:
         return 0
 
 
+def _build_shorten_prompt(text: str, max_chars: int) -> str:
+    return (
+        f"Сократи текст до не более {max_chars} символов с пробелами. "
+        "Сохрани смысл, факты и читаемость. Верни только итоговый текст.\n\n"
+        f"Текст:\n{text}"
+    )
+
+
 def process_row(
     row: SheetRow,
     sheet_cfg: SheetAssistants,
     assistants_client: AssistantsClient,
     image_pipeline: Optional[ImagePipeline],
-    brief_assistant_id: Optional[str],
+    brief_model: Optional[str],
+    prompts: Optional[PromptSet],
     settings: Settings,
 ) -> str:
     """Полностью обработать строку: текст, модерация, бриф и изображение."""
@@ -44,10 +54,11 @@ def process_row(
     image_needed = settings.image_generation_enabled and sheet_cfg.generate_image
 
     if image_needed:
-        if not brief_assistant_id:
+        if not brief_model:
             raise ProcessingError("Не задан ассистент художественного брифа")
         if not image_pipeline:
             raise ProcessingError("Клиент генерации изображений недоступен")
+    content_limit = sheet_cfg.max_content_chars
 
     iteration = _parse_iteration(row.values.get("Iteration"))
     row.update({"Iteration": str(iteration)})
@@ -57,7 +68,21 @@ def process_row(
     )
 
     try:
-        draft = assistants_client.run_assistant(sheet_cfg.writer_assistant_id, row.title)
+        active_prompts = prompts
+        if sheet_cfg.writer_system_prompt_path:
+            active_prompts = load_prompt_set(
+                writer_system_path=sheet_cfg.writer_system_prompt_path,
+                moderator_system_path=sheet_cfg.moderator_system_prompt_path or settings.prompt_moderator_system_path,
+                brief_system_path=sheet_cfg.brief_system_prompt_path or settings.prompt_brief_system_path,
+                revision_template_path=sheet_cfg.revision_user_template_path or settings.prompt_revision_user_template_path,
+            )
+        writer_system = active_prompts.writer_system if active_prompts else ""
+        draft = assistants_client.run_response(
+            sheet_cfg.writer_model,
+            row.title,
+            writer_system,
+            reasoning_effort=sheet_cfg.writer_reasoning_effort,
+        )
     except AssistantRunError as error:
         raise ProcessingError(f"Ошибка писателя: {error}") from error
 
@@ -69,8 +94,9 @@ def process_row(
 
     while True:
         try:
-            moderator_reply = assistants_client.run_assistant(
-                sheet_cfg.moderator_assistant_id, draft
+            moderator_system = active_prompts.moderator_system if active_prompts else ""
+            moderator_reply = assistants_client.run_response(
+                sheet_cfg.moderator_model, draft, moderator_system
             )
         except AssistantRunError as error:
             raise ProcessingError(f"Ошибка модератора: {error}") from error
@@ -92,10 +118,17 @@ def process_row(
             )
             break
 
-        revision_prompt = build_revision_prompt(draft, moderator_reply)
+        revision_prompt = (
+            active_prompts.build_revision_prompt(draft, moderator_reply)
+            if active_prompts
+            else f"Текст:\n{draft}\n\nКомментарий:\n{moderator_reply}"
+        )
         try:
-            draft = assistants_client.run_assistant(
-                sheet_cfg.writer_assistant_id, revision_prompt
+            draft = assistants_client.run_response(
+                sheet_cfg.writer_model,
+                revision_prompt,
+                writer_system,
+                reasoning_effort=sheet_cfg.writer_reasoning_effort,
             )
         except AssistantRunError as error:
             raise ProcessingError(f"Ошибка писателя при доработке: {error}") from error
@@ -103,9 +136,30 @@ def process_row(
         row.update({"Content": draft})
 
     image_url = row.values.get("Image URL", "")
+    if approved and content_limit and len(draft) > content_limit:
+        for _ in range(settings.max_revisions):
+            shorten_prompt = _build_shorten_prompt(draft, content_limit)
+            try:
+                draft = assistants_client.run_response(
+                    sheet_cfg.writer_model,
+                    shorten_prompt,
+                    writer_system,
+                    reasoning_effort=sheet_cfg.writer_reasoning_effort,
+                )
+            except AssistantRunError as error:
+                raise ProcessingError(f"Ошибка писателя при сокращении: {error}") from error
+            row.update({"Content": draft})
+            if len(draft) <= content_limit:
+                break
+        if len(draft) > content_limit:
+            raise ProcessingError(
+                f"Не удалось уложить текст в лимит {content_limit} символов"
+            )
+
     if image_needed:
         try:
-            brief_prompt = assistants_client.run_assistant(brief_assistant_id, draft)
+            brief_system = active_prompts.brief_system if active_prompts else ""
+            brief_prompt = assistants_client.run_response(brief_model, draft, brief_system)
         except AssistantRunError as error:
             raise ProcessingError(f"Ошибка ассистента брифа: {error}") from error
 

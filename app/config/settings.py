@@ -24,14 +24,20 @@ class SheetAssistants:
     """Конфигурация ассистентов для отдельной вкладки Google Sheets."""
 
     tab: str
-    writer_assistant_id: str
-    moderator_assistant_id: str
+    writer_model: str
+    moderator_model: str
+    writer_system_prompt_path: Optional[Path] = None
+    moderator_system_prompt_path: Optional[Path] = None
+    brief_system_prompt_path: Optional[Path] = None
+    revision_user_template_path: Optional[Path] = None
+    max_content_chars: Optional[int] = None
+    writer_reasoning_effort: Optional[str] = None
     generate_image: bool = True
 
     def ensure_complete(self) -> None:
-        if not self.writer_assistant_id or not self.moderator_assistant_id:
+        if not self.writer_model or not self.moderator_model:
             raise ValueError(
-                f"Для вкладки {self.tab} должны быть указаны writer_assistant_id и moderator_assistant_id"
+                f"Для вкладки {self.tab} должны быть указаны writer_model и moderator_model"
             )
 
 
@@ -48,7 +54,11 @@ class Settings:
     max_revisions: int
     lock_ttl_minutes: int
     sheets: List[SheetAssistants] = field(default_factory=list)
-    global_image_brief_assistant_id: Optional[str] = None
+    global_image_brief_model: Optional[str] = None
+    prompt_writer_system_path: Path = field(default_factory=lambda: Path("./prompts/writer_system.txt"))
+    prompt_moderator_system_path: Path = field(default_factory=lambda: Path("./prompts/moderator_system.txt"))
+    prompt_brief_system_path: Path = field(default_factory=lambda: Path("./prompts/brief_system.txt"))
+    prompt_revision_user_template_path: Path = field(default_factory=lambda: Path("./prompts/revision_user_template.txt"))
     temp_dir: Path = field(default_factory=lambda: Path("./tmp"))
     log_level: str = "INFO"
     image_generation_enabled: bool = True
@@ -81,11 +91,21 @@ class Settings:
                 parsed = json.loads(sheet_configs_raw)
                 for item in parsed:
                     tab_name = item["tab"]
+                    writer_prompt = item.get("writer_system_prompt_path")
+                    moderator_prompt = item.get("moderator_system_prompt_path")
+                    brief_prompt = item.get("brief_system_prompt_path")
+                    revision_prompt = item.get("revision_user_template_path")
                     sheets.append(
                         SheetAssistants(
                             tab=tab_name,
-                            writer_assistant_id=item["writer_assistant_id"],
-                            moderator_assistant_id=item["moderator_assistant_id"],
+                            writer_model=item["writer_model"],
+                            moderator_model=item["moderator_model"],
+                            writer_system_prompt_path=Path(writer_prompt).resolve() if writer_prompt else None,
+                            moderator_system_prompt_path=Path(moderator_prompt).resolve() if moderator_prompt else None,
+                            brief_system_prompt_path=Path(brief_prompt).resolve() if brief_prompt else None,
+                            revision_user_template_path=Path(revision_prompt).resolve() if revision_prompt else None,
+                            max_content_chars=_to_optional_int(item.get("max_content_chars")),
+                            writer_reasoning_effort=_to_reasoning_effort(item.get("writer_reasoning_effort")),
                             generate_image=item.get(
                                 "generate_image",
                                 tab_name.strip().lower() not in disabled_tabs,
@@ -124,7 +144,13 @@ class Settings:
             max_revisions=max_revisions_value,
             lock_ttl_minutes=int(os.getenv("PROCESSING_LOCK_TTL_MINUTES", "15")),
             sheets=sheets,
-            global_image_brief_assistant_id=os.getenv("GLOBAL_IMAGE_BRIEF_ASSISTANT_ID") or None,
+            global_image_brief_model=os.getenv("GLOBAL_IMAGE_BRIEF_MODEL") or None,
+            prompt_writer_system_path=Path(os.getenv("PROMPT_WRITER_SYSTEM_PATH", "./prompts/writer_system.txt")).resolve(),
+            prompt_moderator_system_path=Path(os.getenv("PROMPT_MODERATOR_SYSTEM_PATH", "./prompts/moderator_system.txt")).resolve(),
+            prompt_brief_system_path=Path(os.getenv("PROMPT_BRIEF_SYSTEM_PATH", "./prompts/brief_system.txt")).resolve(),
+            prompt_revision_user_template_path=Path(
+                os.getenv("PROMPT_REVISION_USER_TEMPLATE_PATH", "./prompts/revision_user_template.txt")
+            ).resolve(),
             temp_dir=temp_dir,
             log_level=(os.getenv("LOG_LEVEL") or "INFO").upper(),
             image_generation_enabled=_env_flag("IMAGE_GENERATION_ENABLED", True),
@@ -169,3 +195,33 @@ def _get_int_env(*, primary: str, fallback: str, default: int) -> int:
         raise ValueError(
             f"Некорректное числовое значение для переменной {primary}"
         ) from error
+
+
+def _to_optional_int(raw_value: object) -> Optional[int]:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, int):
+        return raw_value if raw_value > 0 else None
+    if isinstance(raw_value, str):
+        value = raw_value.strip()
+        if not value:
+            return None
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    raise ValueError("max_content_chars должен быть положительным числом")
+
+
+def _to_reasoning_effort(raw_value: object) -> Optional[str]:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str):
+        raise ValueError("writer_reasoning_effort должен быть строкой")
+    value = raw_value.strip().lower()
+    if not value:
+        return None
+    allowed = {"minimal", "low", "medium", "high"}
+    if value not in allowed:
+        raise ValueError(
+            f"writer_reasoning_effort должен быть одним из: {', '.join(sorted(allowed))}"
+        )
+    return value

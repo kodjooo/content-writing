@@ -16,8 +16,10 @@ from app.services import (
     ImageGenerationConfig,
     ImageGenerator,
     ImagePipeline,
+    PromptSet,
     create_image_host_client,
     create_sheets_repository,
+    load_prompt_set,
 )
 
 logger = get_logger(__name__)
@@ -26,10 +28,20 @@ logger = get_logger(__name__)
 def _init_assistants(settings: Settings) -> AssistantsClient:
     config = AssistantsConfig(
         api_key=settings.openai_api_key,
+        default_model="gpt-4.1-mini",
         org_id=settings.openai_org_id,
         project_id=settings.openai_project_id,
     )
     return AssistantsClient(config)
+
+
+def _load_prompts(settings: Settings) -> PromptSet:
+    return load_prompt_set(
+        writer_system_path=settings.prompt_writer_system_path,
+        moderator_system_path=settings.prompt_moderator_system_path,
+        brief_system_path=settings.prompt_brief_system_path,
+        revision_template_path=settings.prompt_revision_user_template_path,
+    )
 
 
 def _init_image_pipeline(settings: Settings) -> ImagePipeline:
@@ -79,6 +91,12 @@ def run_once(settings: Settings) -> None:
         logger.error("Не удалось инициализировать клиента Assistants: %s", error)
         return
 
+    try:
+        prompt_set = _load_prompts(settings)
+    except Exception as error:  # noqa: BLE001
+        logger.error("Не удалось загрузить файлы промптов: %s", error)
+        return
+
     image_pipeline: Optional[ImagePipeline] = None
     if settings.image_generation_enabled:
         try:
@@ -118,7 +136,8 @@ def run_once(settings: Settings) -> None:
                     sheet_cfg=sheet_cfg,
                     assistants_client=assistants_client,
                     image_pipeline=image_pipeline,
-                    brief_assistant_id=settings.global_image_brief_assistant_id,
+                    brief_model=settings.global_image_brief_model,
+                    prompts=prompt_set,
                     settings=settings,
                 )
                 processed += 1

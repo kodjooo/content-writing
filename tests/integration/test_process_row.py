@@ -36,7 +36,7 @@ class FakeAssistantsClient:
                 self._mapping[key] = value
         self.calls: list[tuple[str, str]] = []
 
-    def run_assistant(self, assistant_id: str, message: str) -> str:
+    def run_response(self, assistant_id: str, message: str, system_prompt: str = "") -> str:
         self.calls.append((assistant_id, message))
         if assistant_id not in self._mapping:
             raise AssertionError(f"Неожиданный ассистент {assistant_id}")
@@ -79,7 +79,7 @@ def make_settings(tmp_path: Path, **overrides: Any) -> Settings:
         "max_revisions": 3,
         "lock_ttl_minutes": 15,
         "sheets": [],
-        "global_image_brief_assistant_id": "brief",
+        "global_image_brief_model": "brief",
         "temp_dir": tmp_path,
         "log_level": "INFO",
         "image_generation_enabled": True,
@@ -109,8 +109,8 @@ def build_row(repository: DummyRepository) -> SheetRow:
 def base_sheet_cfg() -> SheetAssistants:
     return SheetAssistants(
         tab="Main",
-        writer_assistant_id="writer",
-        moderator_assistant_id="moderator",
+        writer_model="writer",
+        moderator_model="moderator",
     )
 
 
@@ -133,7 +133,8 @@ def test_process_row_success(tmp_path: Path, base_sheet_cfg: SheetAssistants) ->
         sheet_cfg=base_sheet_cfg,
         assistants_client=assistants,
         image_pipeline=image_pipeline,
-        brief_assistant_id=settings.global_image_brief_assistant_id,
+        brief_model=settings.global_image_brief_model,
+        prompts=None,
         settings=settings,
     )
 
@@ -159,7 +160,7 @@ def test_process_row_hits_revision_limit(tmp_path: Path, base_sheet_cfg: SheetAs
         tmp_path,
         max_revisions=2,
         image_generation_enabled=False,
-        global_image_brief_assistant_id=None,
+        global_image_brief_model=None,
     )
 
     status = process_row(
@@ -167,7 +168,8 @@ def test_process_row_hits_revision_limit(tmp_path: Path, base_sheet_cfg: SheetAs
         sheet_cfg=base_sheet_cfg,
         assistants_client=assistants,
         image_pipeline=None,
-        brief_assistant_id=settings.global_image_brief_assistant_id,
+        brief_model=settings.global_image_brief_model,
+        prompts=None,
         settings=settings,
     )
 
@@ -198,7 +200,7 @@ def test_process_row_image_failure(tmp_path: Path, base_sheet_cfg: SheetAssistan
             sheet_cfg=base_sheet_cfg,
             assistants_client=assistants,
             image_pipeline=image_pipeline,
-            brief_assistant_id=settings.global_image_brief_assistant_id,
+            brief_model=settings.global_image_brief_model,
             settings=settings,
         )
 
@@ -223,8 +225,8 @@ def test_process_row_skip_image_for_tab(tmp_path: Path, base_sheet_cfg: SheetAss
 
     sheet_cfg = SheetAssistants(
         tab="Main",
-        writer_assistant_id="writer",
-        moderator_assistant_id="moderator",
+        writer_model="writer",
+        moderator_model="moderator",
         generate_image=False,
     )
 
@@ -233,10 +235,74 @@ def test_process_row_skip_image_for_tab(tmp_path: Path, base_sheet_cfg: SheetAss
         sheet_cfg=sheet_cfg,
         assistants_client=assistants,
         image_pipeline=image_pipeline,
-        brief_assistant_id=settings.global_image_brief_assistant_id,
+        brief_model=settings.global_image_brief_model,
+        prompts=None,
         settings=settings,
     )
 
     assert status == "Written"
     assert image_pipeline.calls == []
     assert row.values["Image URL"] == "https://existing.example/image.png"
+
+
+def test_process_row_shortens_after_moderator_approval(tmp_path: Path) -> None:
+    assistants = FakeAssistantsClient(
+        {
+            "writer": ["Очень длинный черновик", "Короткий текст"],
+            "moderator": ["ок"],
+            "brief": ["Описание"],
+        }
+    )
+    repository = DummyRepository()
+    row = build_row(repository)
+    settings = make_settings(tmp_path, image_generation_enabled=False, global_image_brief_model=None)
+    sheet_cfg = SheetAssistants(
+        tab="Main",
+        writer_model="writer",
+        moderator_model="moderator",
+        max_content_chars=20,
+        generate_image=False,
+    )
+    status = process_row(
+        row=row,
+        sheet_cfg=sheet_cfg,
+        assistants_client=assistants,
+        image_pipeline=None,
+        brief_model=None,
+        prompts=None,
+        settings=settings,
+    )
+    assert status == "Written"
+    assert row.values["Content"] == "Короткий текст"
+
+
+def test_process_row_fails_when_cannot_shorten(tmp_path: Path) -> None:
+    assistants = FakeAssistantsClient(
+        {
+            "writer": ["Очень длинный черновик", "Все еще слишком длинный текст", "Опять слишком длинный текст"],
+            "moderator": ["ок"],
+        }
+    )
+    repository = DummyRepository()
+    row = build_row(repository)
+    settings = make_settings(
+        tmp_path, image_generation_enabled=False, global_image_brief_model=None, max_revisions=2
+    )
+    sheet_cfg = SheetAssistants(
+        tab="Main",
+        writer_model="writer",
+        moderator_model="moderator",
+        max_content_chars=10,
+        generate_image=False,
+    )
+    with pytest.raises(ProcessingError) as error:
+        process_row(
+            row=row,
+            sheet_cfg=sheet_cfg,
+            assistants_client=assistants,
+            image_pipeline=None,
+            brief_model=None,
+            prompts=None,
+            settings=settings,
+        )
+    assert "Не удалось уложить текст в лимит" in str(error.value)

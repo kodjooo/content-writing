@@ -2,7 +2,7 @@
 
 ## 1. Обзор
 Приложение состоит из модулей пакета `app` и запускается через `python -m app.main`.
-Главный сценарий: найти строку `Prepared`, выполнить цепочку Assistants, при необходимости сгенерировать и загрузить изображение, записать итог в Google Sheets.
+Главный сценарий: найти строку `Prepared`, выполнить цепочку Responses API, при необходимости сгенерировать и загрузить изображение, записать итог в Google Sheets.
 
 ## 2. Точка входа и режимы запуска
 Файл: `app/main.py`
@@ -35,7 +35,8 @@
 - Проверяет существование файла сервисного аккаунта.
 - Инициализирует:
   - `SheetsRepository`
-  - `AssistantsClient`
+  - `AssistantsClient` (обертка над Responses API)
+  - `PromptSet` (загрузка промптов из файлов)
   - `ImagePipeline` (если `IMAGE_GENERATION_ENABLED=true`)
 
 ### 4.2 Цикл `run_once`
@@ -58,10 +59,11 @@
 5. Запускает цикл модерации:
 - пишет `Moderator Note` после каждой проверки;
 - при неуспехе увеличивает `Iteration`;
-- строит prompt доработки через `build_revision_prompt(...)`;
+- строит prompt доработки через шаблон `prompts/revision_user_template.txt`;
 - останавливается на одобрении или лимите итераций.
+6. После одобрения модератора, если задан `max_content_chars` для вкладки, дополнительно проверяет длину текста (символы с пробелами) и при превышении отправляет писателю запрос на сокращение до лимита без повторной модерации.
 6. При включенной генерации:
-- вызывает ассистента брифа;
+- вызывает модель брифа;
 - генерирует изображение;
 - загружает его на FreeImage.host.
 7. Финально обновляет: `Content`, `Image URL`, `Status`, `Iteration`, `Moderator Note`.
@@ -83,20 +85,18 @@
   - выставляет новый `Lock` с TTL (`PROCESSING_LOCK_TTL_MINUTES`).
 - `release_lock(...)` очищает `Lock`.
 
-## 7. Assistants API
+## 7. OpenAI Responses API
 Файл: `app/services/openai_assistants.py`
-- `AssistantsClient.run_assistant(...)`:
-  - создает thread;
-  - добавляет сообщение пользователя;
-  - создает run;
-  - опрашивает статус до терминального;
-  - извлекает текст ответа assistant-сообщения.
-- Терминальные статусы: `completed`, `failed`, `cancelled`, `expired`, `requires_action`.
-- Используются ретраи на ошибках OpenAI/ранов.
-- Утилиты:
-  - `normalize_moderator_reply`
-  - `is_moderator_approved`
-  - `build_revision_prompt`
+- `AssistantsClient.run_response(...)`:
+  - отправляет `system` + `user` сообщения в `client.responses.create(...)`;
+  - получает итоговый текст из `output_text`;
+  - выполняет ретраи на ошибках OpenAI.
+- Промпты вынесены в отдельные файлы:
+  - `prompts/writer_system.txt`
+  - `prompts/moderator_system.txt`
+  - `prompts/brief_system.txt`
+  - `prompts/revision_user_template.txt`
+- Загрузка промптов выполняется через `load_prompt_set(...)`.
 
 ## 8. Пайплайн изображений
 Файлы:

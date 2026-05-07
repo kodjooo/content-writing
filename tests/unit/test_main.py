@@ -25,11 +25,11 @@ def make_settings(tmp_path: Path, *, run_on_start: bool) -> Settings:
         sheets=[
             SheetAssistants(
                 tab="Main",
-                writer_assistant_id="writer",
-                moderator_assistant_id="moderator",
+                writer_model="writer",
+                moderator_model="moderator",
             )
         ],
-        global_image_brief_assistant_id=None,
+        global_image_brief_model=None,
         temp_dir=tmp_path,
         log_level="INFO",
         image_generation_enabled=False,

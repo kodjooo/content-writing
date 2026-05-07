@@ -27,7 +27,7 @@ class FakeSheetsRepository:
 class FakeAssistantsClient:
     """Заглушка клиента Assistants."""
 
-    def run_assistant(self, assistant_id: str, message: str) -> str:  # type: ignore[no-untyped-def]
+    def run_response(self, assistant_id: str, message: str, system_prompt: str = "") -> str:  # type: ignore[no-untyped-def]
         raise AssertionError("run_assistant не должен вызываться")
 
 
@@ -46,11 +46,11 @@ def make_settings(tmp_path: Path) -> Settings:
         sheets=[
             SheetAssistants(
                 tab="Main",
-                writer_assistant_id="writer",
-                moderator_assistant_id="moderator",
+                writer_model="writer",
+                moderator_model="moderator",
             )
         ],
-        global_image_brief_assistant_id=None,
+        global_image_brief_model=None,
         temp_dir=tmp_path,
         log_level="INFO",
         image_generation_enabled=False,

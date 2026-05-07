@@ -1,9 +1,9 @@
-"""Функции и клиент для работы с OpenAI Assistants."""
+"""Клиент Responses API и утилиты работы с текстовыми пайплайнами."""
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 from openai import OpenAI
@@ -22,25 +22,24 @@ APPROVAL_RESPONSES = {"ok", "ок", "okay", "хорошо"}
 
 
 class AssistantRunError(RuntimeError):
-    """Ошибка при взаимодействии с ассистентом."""
+    """Ошибка при взаимодействии с OpenAI."""
 
 
 @dataclass
 class AssistantsConfig:
-    """Параметры клиента Assistants."""
+    """Параметры клиента Responses API."""
 
     api_key: str
+    default_model: str
     org_id: Optional[str] = None
     project_id: Optional[str] = None
-    poll_interval: float = 1.0
-    timeout: Optional[float] = None
     retry_attempts: int = 3
     retry_base_delay: float = 1.0
     retry_max_delay: float = 10.0
 
 
 class AssistantsClient:
-    """Высокоуровневый клиент для вызовов Assistants API."""
+    """Высокоуровневый клиент для вызовов OpenAI Responses API."""
 
     def __init__(self, config: AssistantsConfig) -> None:
         self._config = config
@@ -50,7 +49,7 @@ class AssistantsClient:
             project=config.project_id,
         )
         self._retryer = create_retrying(
-            name="assistants",
+            name="responses",
             logger=logger,
             exceptions=(OpenAIError, AssistantRunError),
             attempts=config.retry_attempts,
@@ -58,81 +57,79 @@ class AssistantsClient:
             max_delay=config.retry_max_delay,
         )
 
-    def run_assistant(self, assistant_id: str, message: str) -> str:
-        """Отправить сообщение ассистенту и вернуть текст ответа."""
-        logger.debug("Запуск ассистента %s", assistant_id)
+    def run_assistant(self, assistant_id: str, message: str, system_prompt: str = "") -> str:
+        """Сохранено для совместимости: assistant_id используется как model."""
+        return self.run_response(model=assistant_id, user_message=message, system_prompt=system_prompt)
+
+    def run_response(
+        self,
+        model: Optional[str],
+        user_message: str,
+        system_prompt: str = "",
+        reasoning_effort: Optional[str] = None,
+    ) -> str:
+        """Отправить запрос в Responses API и вернуть текст ответа."""
+        target_model = model or self._config.default_model
+        logger.debug("Запуск модели %s через Responses API", target_model)
+
         def _call() -> str:
-            thread = self._client.beta.threads.create()
-            self._client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=message,
-            )
-            run = self._client.beta.threads.runs.create(
-                thread_id=thread.id,
-                assistant_id=assistant_id,
-            )
-            response_status = self._wait_for_completion(thread.id, run.id)
-            if response_status != "completed":
-                raise AssistantRunError(
-                    f"Ассистент завершился со статусом {response_status}"
-                )
-            return self._extract_text(thread.id)
+            input_parts = []
+            if system_prompt.strip():
+                input_parts.append({"role": "system", "content": system_prompt})
+            input_parts.append({"role": "user", "content": user_message})
+
+            params = {
+                "model": target_model,
+                "input": input_parts,
+            }
+            if reasoning_effort:
+                params["reasoning"] = {"effort": reasoning_effort}
+            response = self._client.responses.create(**params)
+
+            text = getattr(response, "output_text", "")
+            if text and text.strip():
+                return text.strip()
+            raise AssistantRunError("Модель не вернула текстовый ответ")
 
         try:
             return self._retryer(_call)
         except (OpenAIError, AssistantRunError) as error:  # type: ignore[arg-type]
-            raise AssistantRunError(
-                "Не удалось получить ответ от ассистента"
-            ) from error
+            raise AssistantRunError("Не удалось получить ответ от Responses API") from error
 
-    def _wait_for_completion(self, thread_id: str, run_id: str) -> str:
-        started = time.monotonic()
-        while True:
-            run = self._client.beta.threads.runs.retrieve(
-                thread_id=thread_id,
-                run_id=run_id,
-            )
-            status = run.status
-            if status in {"completed", "failed", "cancelled", "expired", "requires_action"}:
-                return status
-            if self._config.timeout is not None and (
-                time.monotonic() - started
-            ) > self._config.timeout:
-                raise AssistantRunError("Превышено время ожидания ответа ассистента")
-            time.sleep(self._config.poll_interval)
 
-    def _extract_text(self, thread_id: str) -> str:
-        messages = self._client.beta.threads.messages.list(
-            thread_id=thread_id,
-            order="desc",
-            limit=5,
-        )
-        for message in messages.data:
-            if message.role != "assistant":
-                continue
-            chunks = []
-            for block in message.content:
-                if getattr(block, "type", None) == "text":
-                    text_value = getattr(getattr(block, "text", None), "value", None)
-                    if text_value:
-                        chunks.append(text_value)
-            if chunks:
-                return "\n\n".join(chunks).strip()
-        raise AssistantRunError("Ассистент не вернул текстовый ответ")
+@dataclass(frozen=True)
+class PromptSet:
+    writer_system: str
+    moderator_system: str
+    brief_system: str
+    revision_user_template: str
+
+    def build_revision_prompt(self, draft: str, feedback: str) -> str:
+        return self.revision_user_template.format(draft=draft, feedback=feedback)
+
+
+def load_prompt_set(
+    writer_system_path: Path,
+    moderator_system_path: Path,
+    brief_system_path: Path,
+    revision_template_path: Path,
+) -> PromptSet:
+    return PromptSet(
+        writer_system=writer_system_path.read_text(encoding="utf-8").strip(),
+        moderator_system=moderator_system_path.read_text(encoding="utf-8").strip(),
+        brief_system=brief_system_path.read_text(encoding="utf-8").strip(),
+        revision_user_template=revision_template_path.read_text(encoding="utf-8").strip(),
+    )
 
 
 def normalize_moderator_reply(reply: str) -> str:
-    """Привести ответ модератора к канонической форме."""
     return reply.strip().lower()
 
 
 def is_moderator_approved(reply: str) -> bool:
-    """Проверить, является ли ответ модератора подтверждением."""
     normalized = normalize_moderator_reply(reply)
     return normalized in APPROVAL_RESPONSES
 
 
 def build_revision_prompt(draft: str, feedback: str) -> str:
-    """Сформировать запрос для повторного обращения к писателю."""
     return f"Текст:\n{draft}\n\nКомментарий:\n{feedback}"
