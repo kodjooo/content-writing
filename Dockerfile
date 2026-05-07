@@ -12,5 +12,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && if [ -s requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
 
 COPY app ./app
+COPY prompts ./prompts
+COPY docs ./docs
 
 CMD ["python", "-m", "app.main"]
