@@ -72,6 +72,7 @@ class Settings:
     run_on_start: bool = False
     schedule_time: str = "08:30"
     schedule_timezone: str = "Europe/Moscow"
+    debug_log_text_limit: int = 4500
 
     @classmethod
     def load(cls) -> "Settings":
@@ -164,6 +165,7 @@ class Settings:
             run_on_start=_env_flag("RUN_ON_START", False),
             schedule_time=os.getenv("SCHEDULE_TIME", "08:30"),
             schedule_timezone=os.getenv("SCHEDULE_TIMEZONE", "Europe/Moscow"),
+            debug_log_text_limit=int(os.getenv("DEBUG_LOG_TEXT_LIMIT", "4500")),
         )
 
     def get_assistants_for_tab(self, tab_name: str) -> SheetAssistants:

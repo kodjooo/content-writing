@@ -39,6 +39,12 @@ def _build_shorten_prompt(text: str, max_chars: int) -> str:
     )
 
 
+def _snippet(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}... [truncated, total={len(text)} chars]"
+
+
 def process_row(
     row: SheetRow,
     sheet_cfg: SheetAssistants,
@@ -83,6 +89,13 @@ def process_row(
             writer_system,
             reasoning_effort=sheet_cfg.writer_reasoning_effort,
         )
+        logger.debug(
+            "Writer draft (tab=%s row=%s chars=%s): %s",
+            sheet_cfg.tab,
+            row.row_index,
+            len(draft),
+            _snippet(draft, settings.debug_log_text_limit),
+        )
     except AssistantRunError as error:
         raise ProcessingError(f"Ошибка писателя: {error}") from error
 
@@ -97,6 +110,13 @@ def process_row(
             moderator_system = active_prompts.moderator_system if active_prompts else ""
             moderator_reply = assistants_client.run_response(
                 sheet_cfg.moderator_model, draft, moderator_system
+            )
+            logger.debug(
+                "Moderator reply (tab=%s row=%s chars=%s): %s",
+                sheet_cfg.tab,
+                row.row_index,
+                len(moderator_reply),
+                _snippet(moderator_reply, settings.debug_log_text_limit),
             )
         except AssistantRunError as error:
             raise ProcessingError(f"Ошибка модератора: {error}") from error
@@ -130,6 +150,14 @@ def process_row(
                 writer_system,
                 reasoning_effort=sheet_cfg.writer_reasoning_effort,
             )
+            logger.debug(
+                "Writer revised draft (tab=%s row=%s iter=%s chars=%s): %s",
+                sheet_cfg.tab,
+                row.row_index,
+                iteration,
+                len(draft),
+                _snippet(draft, settings.debug_log_text_limit),
+            )
         except AssistantRunError as error:
             raise ProcessingError(f"Ошибка писателя при доработке: {error}") from error
 
@@ -145,6 +173,14 @@ def process_row(
                     shorten_prompt,
                     writer_system,
                     reasoning_effort=sheet_cfg.writer_reasoning_effort,
+                )
+                logger.debug(
+                    "Writer shortened draft (tab=%s row=%s chars=%s limit=%s): %s",
+                    sheet_cfg.tab,
+                    row.row_index,
+                    len(draft),
+                    content_limit,
+                    _snippet(draft, settings.debug_log_text_limit),
                 )
             except AssistantRunError as error:
                 raise ProcessingError(f"Ошибка писателя при сокращении: {error}") from error
