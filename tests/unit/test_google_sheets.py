@@ -75,6 +75,7 @@ def test_acquire_prepared_row_sets_lock(monkeypatch: pytest.MonkeyPatch) -> None
 
     headers = [
         "Title",
+        "Context",
         "Content",
         "Image URL",
         "Status",
@@ -116,6 +117,7 @@ def test_acquire_prepared_row_skips_locked(monkeypatch: pytest.MonkeyPatch) -> N
 
     headers = [
         "Title",
+        "Context",
         "Content",
         "Image URL",
         "Status",

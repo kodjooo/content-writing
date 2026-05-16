@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 
 BASE_REQUIRED_COLUMNS = [
     "Title",
+    "Context",
     "Content",
     "Image URL",
     "Status",

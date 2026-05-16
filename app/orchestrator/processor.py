@@ -39,6 +39,12 @@ def _build_shorten_prompt(text: str, max_chars: int) -> str:
     )
 
 
+def _build_writer_prompt(title: str, context: str) -> str:
+    if not context.strip():
+        return title
+    return f"Тема:\n{title}\n\nКонтекст автора:\n{context}"
+
+
 def _snippet(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
@@ -83,9 +89,13 @@ def process_row(
                 revision_template_path=sheet_cfg.revision_user_template_path or settings.prompt_revision_user_template_path,
             )
         writer_system = active_prompts.writer_system if active_prompts else ""
+        writer_prompt = _build_writer_prompt(
+            row.title,
+            row.values.get("Context", ""),
+        )
         draft = assistants_client.run_response(
             sheet_cfg.writer_model,
-            row.title,
+            writer_prompt,
             writer_system,
             reasoning_effort=sheet_cfg.writer_reasoning_effort,
         )

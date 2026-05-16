@@ -95,6 +95,7 @@ def build_row(repository: DummyRepository) -> SheetRow:
         row_index=2,
         values={
             "Title": "Статья",
+            "Context": "",
             "Content": "",
             "Image URL": "",
             "Status": "Prepared",
@@ -125,6 +126,7 @@ def test_process_row_success(tmp_path: Path, base_sheet_cfg: SheetAssistants) ->
     image_pipeline = FakeImagePipeline(url="https://drive.example/image.png")
     repository = DummyRepository()
     row = build_row(repository)
+    row.values["Context"] = "Хочу подчеркнуть, что экономия бюджета важна только вместе со стабильным качеством."
 
     settings = make_settings(tmp_path)
 
@@ -144,6 +146,9 @@ def test_process_row_success(tmp_path: Path, base_sheet_cfg: SheetAssistants) ->
     assert row.values["Status"] == "Written"
     assert row.values["Moderator Note"] == " Ок "
     assert image_pipeline.calls == [("Яркое описание", "Статья")]
+    assert assistants.calls[0][0] == "writer"
+    assert "Контекст автора" in assistants.calls[0][1]
+    assert "экономия бюджета" in assistants.calls[0][1]
 
 
 def test_process_row_hits_revision_limit(tmp_path: Path, base_sheet_cfg: SheetAssistants) -> None:
